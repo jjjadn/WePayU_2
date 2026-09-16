@@ -13,10 +13,9 @@ public class Facade {
     }
 
     public void encerrarSistema() {
-        // Reservado para salvar os dados em arquivo
+        // Para salvar posteriormente
     }
 
-    // Criar Empregado SEM Comissão (Horista / Assalariado)
     public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr) throws Exception {
         if ("comissionado".equals(tipo)) {
             throw new Exception("Tipo nao aplicavel.");
@@ -24,7 +23,7 @@ public class Facade {
         return salvarEmpregado(nome, endereco, tipo, salarioStr, null);
     }
 
-    // Criar Empregado COM Comissão (Comissionado)
+
     public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
         if (tipo != null && !"comissionado".equals(tipo)) {
             throw new Exception("Tipo nao aplicavel.");
@@ -33,7 +32,8 @@ public class Facade {
     }
 
     private String salvarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
-        // Valida atributos textuais e converte números
+
+
         ValidadorEmpregado.validarAtributos(nome, endereco, tipo);
         double salario = ValidadorEmpregado.validarSalario(salarioStr);
         Double comissao = null;
@@ -42,7 +42,6 @@ public class Facade {
             comissao = ValidadorEmpregado.validarComissao(comissaoStr);
         }
 
-        // Gera o ID, instancia o Empregado e salva no repositório
         String id = UUID.randomUUID().toString();
         Empregado emp = new Empregado(id, nome, endereco, tipo, salario, comissao);
         empregados.put(id, emp);

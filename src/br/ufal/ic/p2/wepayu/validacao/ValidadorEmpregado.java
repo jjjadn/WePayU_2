@@ -30,10 +30,10 @@ public class ValidadorEmpregado {
         if (tipo == null || (!tipo.equals("horista") &&
                 !tipo.equals("assalariado") &&
                 !tipo.equals("comissionado"))) {
-            throw new Exception("Tipo invalido."); // Alterado de IllegalArgumentException para Exception
+            throw new Exception("Tipo invalido.");
         }
     }
-
+    // testando
     public static double validarComissao(String comissaoString) throws Exception {
         if (comissaoString == null || comissaoString.trim().isEmpty()) {
             throw new Exception("Comissao nao pode ser nula.");
