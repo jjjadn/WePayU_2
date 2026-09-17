@@ -1,6 +1,10 @@
 package br.ufal.ic.p2.wepayu.models;
 
-public class Empregado {
+import java.io.Serializable;
+
+public class Empregado implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private String id;
     private String nome;
     private String endereco;
@@ -8,6 +12,9 @@ public class Empregado {
     private double salario;
     private Double comissao;
     private boolean sindicalizado;
+    public Empregado(){
+
+    }
 
     public Empregado(String id, String nome, String endereco, String tipo, double salario, Double comissao) {
         this.id = id;
@@ -27,6 +34,7 @@ public class Empregado {
     public Double getComissao() {return comissao;}
     public boolean isSindicalizado() {return sindicalizado;}
 
+    public void setId(String id) { this.id = id; }
     public void setNome(String nome) {this.nome = nome;}
     public void setEndereco(String endereco) {this.endereco = endereco;}
     public void setTipo(String tipo) {this.tipo = tipo;}

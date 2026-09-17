@@ -1,19 +1,34 @@
 package br.ufal.ic.p2.wepayu;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+
+import br.ufal.ic.p2.wepayu.persistencia.PersistenciaXML;
 import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorEmpregado;
 
-import java.util.*;
-
 public class Facade {
-    private Map<String, Empregado> empregados = new LinkedHashMap<>();
+    private Map<String, Empregado> empregados;
 
-    public void zerarSistema() {
-        empregados.clear();
+    public Facade() {
+        this.empregados = PersistenciaXML.carregar();
+        System.err.println("Carregados: " + empregados.size() + " empregados de " +
+                new File("empregados.xml").getAbsolutePath());
+        if (this.empregados == null) this.empregados = new LinkedHashMap<>();
     }
 
     public void encerrarSistema() {
-        // Para salvar posteriormente
+        PersistenciaXML.salvar(this.empregados);
+    }
+
+    public void zerarSistema() {
+        this.empregados.clear();
+        PersistenciaXML.apagar();
     }
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr) throws Exception {
@@ -23,7 +38,6 @@ public class Facade {
         return salvarEmpregado(nome, endereco, tipo, salarioStr, null);
     }
 
-
     public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
         if (tipo != null && !"comissionado".equals(tipo)) {
             throw new Exception("Tipo nao aplicavel.");
@@ -32,8 +46,6 @@ public class Facade {
     }
 
     private String salvarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
-
-
         ValidadorEmpregado.validarAtributos(nome, endereco, tipo);
         double salario = ValidadorEmpregado.validarSalario(salarioStr);
         Double comissao = null;
@@ -45,8 +57,26 @@ public class Facade {
         String id = UUID.randomUUID().toString();
         Empregado emp = new Empregado(id, nome, endereco, tipo, salario, comissao);
         empregados.put(id, emp);
+        PersistenciaXML.salvar(empregados);
         return id;
     }
+    public void removerEmpregado(String empId)throws Exception{
+        if (empId == null || empId.trim().isEmpty()){
+            throw new Exception("Identificacao do empregado nao pode ser nula.");
+        }
+        Empregado emp = empregados.get(empId);
+        if(emp == null){
+            throw new Exception("Empregado nao existe.");
+        }
+        empregados.remove(empId);
+
+        PersistenciaXML.salvar(empregados);
+
+    }
+
+
+
+
 
     public String getAtributoEmpregado(String empId, String atributo) throws Exception {
         if (empId == null || empId.trim().isEmpty()) {
@@ -80,17 +110,18 @@ public class Facade {
     }
 
     public String getEmpregadoPorNome(String nome, int indice) throws Exception {
+        if (nome == null || nome.trim().isEmpty()) {
+            throw new Exception("Nome nao pode ser nulo.");
+        }
         List<Empregado> encontrados = new ArrayList<>();
         for (Empregado emp : empregados.values()) {
-            if (emp.getNome().toLowerCase().contains(nome.toLowerCase())) {
+            if (emp.getNome() != null && emp.getNome().contains(nome)) {
                 encontrados.add(emp);
             }
         }
-
         if (encontrados.isEmpty() || indice < 1 || indice > encontrados.size()) {
             throw new Exception("Nao ha empregado com esse nome.");
         }
-
         return encontrados.get(indice - 1).getId();
     }
 }
