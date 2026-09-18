@@ -1,6 +1,9 @@
 package br.ufal.ic.p2.wepayu;
 
 import java.io.File;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -8,8 +11,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+import br.ufal.ic.p2.wepayu.models.Cartao;
 import br.ufal.ic.p2.wepayu.persistencia.PersistenciaXML;
 import br.ufal.ic.p2.wepayu.models.Empregado;
+import br.ufal.ic.p2.wepayu.validacao.ValidadorCartao;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorEmpregado;
 
 public class Facade {
@@ -61,32 +66,27 @@ public class Facade {
         return id;
     }
     public void removerEmpregado(String empId)throws Exception{
-        if (empId == null || empId.trim().isEmpty()){
-            throw new Exception("Identificacao do empregado nao pode ser nula.");
-        }
-        Empregado emp = empregados.get(empId);
-        if(emp == null){
-            throw new Exception("Empregado nao existe.");
-        }
+        Empregado emp = buscarEmpregado(empId);
         empregados.remove(empId);
 
         PersistenciaXML.salvar(empregados);
 
     }
 
-
-
-
-
-    public String getAtributoEmpregado(String empId, String atributo) throws Exception {
+    private Empregado buscarEmpregado(String empId) throws Exception {
         if (empId == null || empId.trim().isEmpty()) {
             throw new Exception("Identificacao do empregado nao pode ser nula.");
         }
-
         Empregado emp = empregados.get(empId);
         if (emp == null) {
             throw new Exception("Empregado nao existe.");
         }
+        return emp;
+    }
+
+    public String getAtributoEmpregado(String empId, String atributo) throws Exception {
+        Empregado emp = buscarEmpregado(empId);
+
 
         switch (atributo) {
             case "nome":
@@ -124,4 +124,81 @@ public class Facade {
         }
         return encontrados.get(indice - 1).getId();
     }
+
+    public void lancaCartao(String empId, String data, String horas) throws Exception {
+        Empregado emp = buscarEmpregado(empId);
+
+        if(!"horista".equals(emp.getTipo())){
+            throw new Exception("Empregado nao eh horista.");
+        }
+        LocalDate d = ValidadorCartao.validarData(data, "");
+        double h = ValidadorCartao.validarHoras(horas);
+
+        Cartao c =new Cartao(d,h);
+        emp.adicionarCartao(c);
+        PersistenciaXML.salvar(empregados);
+
+
+    }
+
+    public String getHorasNormaisTrabalhadas(String empId, String dataInicial, String dataFinal) throws Exception{
+        Empregado emp = buscarEmpregado(empId);
+
+        if (!"horista".equals(emp.getTipo())) {
+            throw new Exception("Empregado nao eh horista.");
+        }
+
+
+        LocalDate inicial = ValidadorCartao.validarData(dataInicial, "inicial");
+        LocalDate fim = ValidadorCartao.validarData(dataFinal, "final");
+
+
+        if (inicial.isAfter(fim)) {
+            throw new Exception("Data inicial nao pode ser posterior aa data final.");
+        }
+        double total = 0;
+
+        for (Cartao c : emp.getCartoes()) {
+            LocalDate d = c.getData();
+            if (!d.isBefore(inicial) && d.isBefore(fim)) {
+                total += Math.min(c.getHoras(), 8);
+            }
+        }
+        return formatarHoras(total);
+
+    }
+
+    public String getHorasExtrasTrabalhadas(String empId, String dataInicial, String dataFinal) throws Exception {
+        Empregado emp = buscarEmpregado(empId);
+
+        if (!"horista".equals(emp.getTipo())) {
+            throw new Exception("Empregado nao eh horista.");
+        }
+
+
+        LocalDate inicial = ValidadorCartao.validarData(dataInicial, "inicial");
+        LocalDate fim = ValidadorCartao.validarData(dataFinal, "final");
+
+
+        if (inicial.isAfter(fim)) {
+            throw new Exception("Data inicial nao pode ser posterior aa data final.");
+        }
+
+        double total = 0;
+        for (Cartao c : emp.getCartoes()) {
+            LocalDate d = c.getData();
+            if (!d.isBefore(inicial) && d.isBefore(fim)) {
+                total += Math.max(0, c.getHoras() - 8);
+            }
+        }
+        return formatarHoras(total);
+    }
+
+    private String formatarHoras(double h) {
+        DecimalFormatSymbols simbolos = new DecimalFormatSymbols(Locale.forLanguageTag("pt-BR"));
+        DecimalFormat df = new DecimalFormat("#.##", simbolos);
+        return df.format(h);
+    }
+
+
 }
