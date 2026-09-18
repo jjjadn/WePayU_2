@@ -12,10 +12,14 @@ import java.util.Map;
 import java.util.UUID;
 
 import br.ufal.ic.p2.wepayu.models.Cartao;
+import br.ufal.ic.p2.wepayu.models.TaxaServico;
+import br.ufal.ic.p2.wepayu.models.Venda;
 import br.ufal.ic.p2.wepayu.persistencia.PersistenciaXML;
 import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorCartao;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorEmpregado;
+import br.ufal.ic.p2.wepayu.validacao.ValidadorTaxa;
+import br.ufal.ic.p2.wepayu.validacao.ValidadorVenda;
 
 public class Facade {
     private Map<String, Empregado> empregados;
@@ -198,6 +202,71 @@ public class Facade {
         DecimalFormatSymbols simbolos = new DecimalFormatSymbols(Locale.forLanguageTag("pt-BR"));
         DecimalFormat df = new DecimalFormat("#.##", simbolos);
         return df.format(h);
+    }
+
+    public String getVendasRealizadas(String empId, String dataInicial, String dataFinal) throws Exception{
+        Empregado emp = buscarEmpregado(empId);
+
+        if(!"comissionado".equals(emp.getTipo())){
+            throw new Exception("Empregado nao eh comissionado.");
+        }
+        LocalDate inicial = ValidadorCartao.validarData(dataInicial, "inicial");
+        LocalDate fim = ValidadorCartao.validarData(dataFinal, "final");
+        if(inicial.isAfter(fim)){
+            throw new Exception("Data inicial nao pode ser posterior aa data final.");
+        }
+        double total = 0;
+        for (Venda v : emp.getVendas()) {
+            if (!v.getData().isBefore(inicial) && v.getData().isBefore(fim)) {
+                total += v.getValor();
+            }
+        }
+
+        return String.format(Locale.GERMANY, "%.2f", total);
+    }
+
+    public void lancaVenda(String empId, String data, String valor)throws Exception{
+        Empregado emp = buscarEmpregado(empId);
+
+        if(!"comissionado".equals(emp.getTipo())){
+            throw new Exception("Empregado nao eh comissionado.");
+        }
+        LocalDate d = ValidadorCartao.validarData(data, "");
+        double v = ValidadorVenda.validarValor(valor);
+        Venda venda = new Venda(d, v);
+        emp.adicionarVenda(venda);
+        PersistenciaXML.salvar(empregados);
+    }
+
+    public void lancaTaxaServico(String membro, String data, String valor)throws Exception{
+        Empregado emp = buscarEmpregadoPorMembro(membro);
+
+        LocalDate d = ValidadorCartao.validarData(data, "");
+        double t = ValidadorVenda.validarValor(valor);
+
+        TaxaServico taxa = new TaxaServico(d,t);
+        emp.adicionarTaxaServico(taxa);
+        PersistenciaXML.salvar(empregados);
+    }
+    public void getTaxasServico(String empId, String dataInicial, String dataFinal) throws Exception{
+        Empregado emp = buscarEmpregado(empId);
+        if(!"sindicalizado".equals(emp.getTipo())){
+            throw new Exception("Empregado nao eh sindicalizado");
+        }
+
+    }
+
+
+    private Empregado buscarEmpregadoPorMembro(String membro) throws Exception{
+        if (membro == null || membro.trim().isEmpty()){
+            throw new Exception("Identifacao do membro nao pode ser nula");
+        }
+        for(Empregado e: empregados.values()){
+            if(membro.equals(e.getIdSindicato())){
+                return e;
+            }
+        }
+        throw new Exception("Membro nao existe.");
     }
 
 

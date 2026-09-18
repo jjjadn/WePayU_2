@@ -14,8 +14,13 @@ public class Empregado implements Serializable {
     private double salario;
     private Double comissao;
     private boolean sindicalizado;
+    private String idSindicato;
+    private Double taxaSindical;
     private List<Cartao> cartoes = new ArrayList<>();
     private List<Venda> vendas = new ArrayList<>();
+    private List<TaxaServico> taxaServicos = new ArrayList<>();
+
+
 
 
     public Empregado(){}
@@ -39,6 +44,9 @@ public class Empregado implements Serializable {
     public boolean isSindicalizado() {return sindicalizado;}
     public List<Cartao> getCartoes() {return cartoes;}
     public List<Venda> getVendas(){return vendas;}
+    public List<TaxaServico> getTaxaServicos(){return taxaServicos;}
+    public String getIdSindicato(){return idSindicato;}
+    public Double getTaxaSindical(){return taxaSindical;}
 
     public void setId(String id) { this.id = id; }
     public void setNome(String nome) {this.nome = nome;}
@@ -51,10 +59,15 @@ public class Empregado implements Serializable {
     public void setCartoes(List<Cartao> cartoes) {this.cartoes = cartoes;}
     public void setVendas(List<Venda> vendas){this.vendas = vendas;}
 
+    public void setTaxaServicos(List<TaxaServico> taxaServicos) {this.taxaServicos = taxaServicos;}
+    public void setIdSindicato(String idSindicato){this.idSindicato = idSindicato;}
+    public void setTaxaSindical(Double taxaSindical){this.taxaSindical = taxaSindical;}
+
+
     public void adicionarCartao(Cartao c){
         this.cartoes.add(c);
     }
     public void adicionarVenda(Venda v) {this.vendas.add(v);}
-
+    public void adicionarTaxaServico(TaxaServico t){this.taxaServicos.add(t);}
 
 }
