@@ -19,7 +19,10 @@ public class Empregado implements Serializable {
     private List<Cartao> cartoes = new ArrayList<>();
     private List<Venda> vendas = new ArrayList<>();
     private List<TaxaServico> taxaServicos = new ArrayList<>();
-
+    private String metodoPagamento = "emMaos";
+    private String banco;
+    private String agencia;
+    private String contaCorrente;
 
 
 
@@ -35,6 +38,7 @@ public class Empregado implements Serializable {
         this.sindicalizado = false;
     }
 
+
     public String getId() {return id;}
     public String getNome() {return nome;}
     public String getEndereco() {return endereco;}
@@ -47,6 +51,10 @@ public class Empregado implements Serializable {
     public List<TaxaServico> getTaxaServicos(){return taxaServicos;}
     public String getIdSindicato(){return idSindicato;}
     public Double getTaxaSindical(){return taxaSindical;}
+    public String getMetodoPagamento(){return metodoPagamento;}
+    public String getBanco(){return banco;}
+    public String getAgencia(){return agencia;}
+    public String getContaCorrente(){return contaCorrente;}
 
     public void setId(String id) { this.id = id; }
     public void setNome(String nome) {this.nome = nome;}
@@ -63,10 +71,12 @@ public class Empregado implements Serializable {
     public void setIdSindicato(String idSindicato){this.idSindicato = idSindicato;}
     public void setTaxaSindical(Double taxaSindical){this.taxaSindical = taxaSindical;}
 
+    public void setContaCorrente(String contaCorrente) {this.contaCorrente = contaCorrente;}
+    public void setBanco(String banco) {this.banco = banco;}
+    public void setAgencia(String agencia) {this.agencia = agencia;}
+    public void setMetodoPagamento(String metodoPagamento) {this.metodoPagamento = metodoPagamento;}
 
-    public void adicionarCartao(Cartao c){
-        this.cartoes.add(c);
-    }
+    public void adicionarCartao(Cartao c){this.cartoes.add(c);}
     public void adicionarVenda(Venda v) {this.vendas.add(v);}
     public void adicionarTaxaServico(TaxaServico t){this.taxaServicos.add(t);}
 

@@ -103,11 +103,45 @@ public class Facade {
                 return String.format(Locale.GERMANY, "%.2f", emp.getSalario());
             case "comissao":
                 if (emp.getComissao() == null) {
-                    throw new Exception("Atributo nao existe.");
+                    throw new Exception("Empregado nao eh comissionado.");
                 }
                 return String.format(Locale.GERMANY, "%.2f", emp.getComissao());
             case "sindicalizado":
                 return String.valueOf(emp.isSindicalizado());
+
+            case "metodoPagamento":
+                return emp.getMetodoPagamento();
+
+            case "banco":
+                if(!"banco".equals(emp.getMetodoPagamento())){
+                throw new Exception("Empregado nao recebe em banco.");
+                }
+                return emp.getBanco();
+
+            case "agencia":
+                if(!"banco".equals(emp.getMetodoPagamento())){
+                    throw new Exception("Empregado nao recebe em banco.");
+                }
+                return emp.getAgencia();
+
+            case "contaCorrente":
+                if(!"banco".equals(emp.getMetodoPagamento())){
+                    throw new Exception("Empregado nao recebe em banco.");
+                }
+                return emp.getContaCorrente();
+
+            case "idSindicato":
+                if(!emp.isSindicalizado()){
+                    throw new Exception("Empregado nao eh sindicalizado.");
+                }
+                return emp.getIdSindicato();
+
+            case "taxaSindical":
+                if(!emp.isSindicalizado()){
+                    throw new Exception("Empregado nao eh sindicalizado.");
+                }
+                return String.format(Locale.GERMANY, "%.2f", emp.getTaxaSindical());
+
             default:
                 throw new Exception("Atributo nao existe.");
         }
@@ -248,18 +282,31 @@ public class Facade {
         emp.adicionarTaxaServico(taxa);
         PersistenciaXML.salvar(empregados);
     }
-    public void getTaxasServico(String empId, String dataInicial, String dataFinal) throws Exception{
+    public String getTaxasServico(String empId, String dataInicial, String dataFinal) throws Exception{
         Empregado emp = buscarEmpregado(empId);
-        if(!"sindicalizado".equals(emp.getTipo())){
-            throw new Exception("Empregado nao eh sindicalizado");
+        if (!emp.isSindicalizado()) {
+            throw new Exception("Empregado nao eh sindicalizado.");
         }
+        LocalDate inicial = ValidadorCartao.validarData(dataInicial, "inicial");
+        LocalDate fim = ValidadorCartao.validarData(dataFinal, "final");
+
+        if(inicial.isAfter(fim)){
+            throw new Exception("Data inicial nao pode ser posterior aa data final.");
+        }
+        double total = 0;
+        for (TaxaServico t : emp.getTaxaServicos()) {
+            if (!t.getData().isBefore(inicial) && t.getData().isBefore(fim)) {
+                total += t.getTaxa();
+            }
+        }
+        return String.format(Locale.GERMANY, "%.2f", total);
 
     }
 
 
     private Empregado buscarEmpregadoPorMembro(String membro) throws Exception{
         if (membro == null || membro.trim().isEmpty()){
-            throw new Exception("Identifacao do membro nao pode ser nula");
+            throw new Exception("Identificacao do membro nao pode ser nula.");
         }
         for(Empregado e: empregados.values()){
             if(membro.equals(e.getIdSindicato())){
@@ -268,6 +315,39 @@ public class Facade {
         }
         throw new Exception("Membro nao existe.");
     }
+
+    public void alteraEmpregado(String empId, String atributo, String valor) throws Exception {
+        alteraEmpregado(empId, atributo, valor, null, null);
+    }
+
+    public void alteraEmpregado(String empId, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
+        Empregado emp = buscarEmpregado(empId);
+
+        if ("sindicalizado".equals(atributo)) {
+            if ("true".equals(valor)) {
+
+                for (Empregado e : empregados.values()) {
+                    if (!e.getId().equals(empId) && idSindicato != null
+                            && idSindicato.equals(e.getIdSindicato())) {
+                        throw new Exception("Ha outro empregado com esta identificacao de sindicato");
+                    }
+                }
+
+                double taxa = Double.parseDouble(taxaSindical.replace(",", "."));
+                emp.setSindicalizado(true);
+                emp.setIdSindicato(idSindicato);
+                emp.setTaxaSindical(taxa);
+
+            } else if ("false".equals(valor)) {
+                emp.setSindicalizado(false);
+                emp.setIdSindicato(null);
+                emp.setTaxaSindical(null);
+            }
+        }
+
+        PersistenciaXML.salvar(empregados);
+    }
+
 
 
 }
