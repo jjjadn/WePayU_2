@@ -48,9 +48,9 @@ expectError "Horas devem ser positivas." lancaCartao emp=${id1} data=1/12/2005 h
 
 expectError "Empregado nao eh horista." getHorasNormaisTrabalhadas emp=${id3} dataInicial=1/1/2005 dataFinal=2/1/2005
 expectError "Empregado nao eh horista." getHorasNormaisTrabalhadas emp=${id4} dataInicial=1/1/2005 dataFinal=2/1/2005
-exData inicial nao pode ser posterior aa data final.pectError "Data inicial invalida." getHorasNormaisTrabalhadas emp=${id1} dataInicial=41/1/2005 dataFinal=2/1/2005
+expectError "Data inicial invalida." getHorasNormaisTrabalhadas emp=${id1} dataInicial=41/1/2005 dataFinal=2/1/2005
 expectError "Data final invalida." getHorasNormaisTrabalhadas emp=${id1} dataInicial=1/1/2005 dataFinal=30/2/2005
-expectError "" getHorasNormaisTrabalhadas emp=${id1} dataInicial=2/1/2005 dataFinal=1/1/2005
+expectError "Data inicial nao pode ser posterior aa data final." getHorasNormaisTrabalhadas emp=${id1} dataInicial=2/1/2005 dataFinal=1/1/2005
 
 encerrarSistema
 quit
