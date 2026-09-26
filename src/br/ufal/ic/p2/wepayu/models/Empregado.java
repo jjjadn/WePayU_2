@@ -1,6 +1,7 @@
 package br.ufal.ic.p2.wepayu.models;
 
 import java.io.Serializable;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,7 +24,7 @@ public class Empregado implements Serializable {
     private String banco;
     private String agencia;
     private String contaCorrente;
-
+    private LocalDate ultimaDataPagamento;
 
 
     public Empregado(){}
@@ -55,6 +56,8 @@ public class Empregado implements Serializable {
     public String getBanco(){return banco;}
     public String getAgencia(){return agencia;}
     public String getContaCorrente(){return contaCorrente;}
+    public LocalDate getUltimaDataPagamento(){return ultimaDataPagamento; }
+
 
     public void setId(String id) { this.id = id; }
     public void setNome(String nome) {this.nome = nome;}
@@ -79,5 +82,5 @@ public class Empregado implements Serializable {
     public void adicionarCartao(Cartao c){this.cartoes.add(c);}
     public void adicionarVenda(Venda v) {this.vendas.add(v);}
     public void adicionarTaxaServico(TaxaServico t){this.taxaServicos.add(t);}
-
+    public void setUltimaDataPagamento(LocalDate d){this.ultimaDataPagamento = d;}
 }
