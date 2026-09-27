@@ -5,15 +5,14 @@ import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.io.PrintWriter;
 import java.io.FileWriter;
-import java.util.Comparator;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.Stack;
 
 import br.ufal.ic.p2.wepayu.models.Cartao;
 import br.ufal.ic.p2.wepayu.models.TaxaServico;
@@ -28,37 +27,179 @@ import br.ufal.ic.p2.wepayu.calculadora.CalculadoraFolhas;
 
 public class Facade {
     private Map<String, Empregado> empregados;
+    private final String ARQUIVO_DADOS = "dados_empregados.dat";
+    private Stack<Map<String, Empregado>> pilhaUndo = new Stack<>();
+    private Stack<Map<String, Empregado>> pilhaRedo = new Stack<>();
+    private boolean encerrado = false;
 
+
+    // Leitura do arquivo XML pelo Facade
     public Facade() {
         this.empregados = PersistenciaXML.carregar();
-        System.err.println("Carregados: " + empregados.size() + " empregados de " +
-                new File("empregados.xml").getAbsolutePath());
-        if (this.empregados == null) this.empregados = new LinkedHashMap<>();
+        if (this.empregados == null) {
+            this.empregados = new LinkedHashMap<>();
+        }
+    }
+
+
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Empregado> deepCopy(Map<String, Empregado> original) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            new ObjectOutputStream(baos).writeObject(original);
+
+            ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+            return (Map<String, Empregado>) new ObjectInputStream(bais).readObject();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void salvarEstado() {
+        pilhaUndo.push(deepCopy(empregados));
+        pilhaRedo.clear();
+    }
+
+    private void verificarEncerrado() throws Exception {
+        if (encerrado) {
+            throw new Exception("Nao pode dar comandos depois de encerrarSistema.");
+        }
     }
 
     public void encerrarSistema() {
-        PersistenciaXML.salvar(this.empregados);
+        encerrado = true;
+        PersistenciaXML.salvar(empregados);
     }
 
-    public void zerarSistema() {
+    public void undo() throws Exception {
+        verificarEncerrado();
+        if (pilhaUndo.isEmpty()) {
+            throw new Exception("Nao ha comando a desfazer.");
+        }
+        pilhaRedo.push(deepCopy(empregados));
+        empregados = pilhaUndo.pop();
+        PersistenciaXML.salvar(empregados);
+    }
+
+    public void redo() throws Exception {
+        verificarEncerrado();
+        if (pilhaRedo.isEmpty()) {
+            throw new Exception("Nao ha comando a refazer.");
+        }
+        pilhaUndo.push(deepCopy(empregados));
+        empregados = pilhaRedo.pop();
+        PersistenciaXML.salvar(empregados);
+    }
+
+    public int getNumeroDeEmpregados() throws Exception {
+        verificarEncerrado();
+        return empregados.size();
+    }
+
+
+    public void zerarSistema() throws Exception {
+        verificarEncerrado();
+        salvarEstado();
         this.empregados.clear();
         PersistenciaXML.apagar();
     }
 
+    public void removerEmpregado(String empId) throws Exception {
+        verificarEncerrado();
+        Empregado emp = buscarEmpregado(empId);
+        salvarEstado();
+        empregados.remove(empId);
+        PersistenciaXML.salvar(empregados);
+    }
+
     public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr) throws Exception {
+        verificarEncerrado();
         if ("comissionado".equals(tipo)) {
             throw new Exception("Tipo nao aplicavel.");
         }
-        return salvarEmpregado(nome, endereco, tipo, salarioStr, null);
+
+        ValidadorEmpregado.validarAtributos(nome, endereco, tipo);
+        double salario = ValidadorEmpregado.validarSalario(salarioStr);
+
+        salvarEstado();
+
+        String id = UUID.randomUUID().toString();
+        Empregado emp = new Empregado(id, nome, endereco, tipo, salario, null);
+        empregados.put(id, emp);
+        PersistenciaXML.salvar(empregados);
+        return id;
     }
 
+
     public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
+        verificarEncerrado();
         if (tipo != null && !"comissionado".equals(tipo)) {
             throw new Exception("Tipo nao aplicavel.");
         }
-        return salvarEmpregado(nome, endereco, tipo, salarioStr, comissaoStr);
+
+        ValidadorEmpregado.validarAtributos(nome, endereco, tipo);
+        double salario = ValidadorEmpregado.validarSalario(salarioStr);
+        Double comissao = ValidadorEmpregado.validarComissao(comissaoStr);
+
+        salvarEstado();
+
+        String id = UUID.randomUUID().toString();
+        Empregado emp = new Empregado(id, nome, endereco, tipo, salario, comissao);
+        empregados.put(id, emp);
+        PersistenciaXML.salvar(empregados);
+        return id;
     }
 
+    public void lancaCartao(String empId, String data, String horas) throws Exception {
+        verificarEncerrado();
+        Empregado emp = buscarEmpregado(empId);
+
+        if (!"horista".equals(emp.getTipo())) {
+            throw new Exception("Empregado nao eh horista.");
+        }
+        LocalDate d = ValidadorCartao.validarData(data, "");
+        double h = ValidadorCartao.validarHoras(horas);
+
+        salvarEstado();
+
+        Cartao c = new Cartao(d, h);
+        emp.adicionarCartao(c);
+        PersistenciaXML.salvar(empregados);
+    }
+
+    public void lancaVenda(String empId, String data, String valor) throws Exception {
+        verificarEncerrado();
+        Empregado emp = buscarEmpregado(empId);
+
+        if (!"comissionado".equals(emp.getTipo())) {
+            throw new Exception("Empregado nao eh comissionado.");
+        }
+        LocalDate d = ValidadorCartao.validarData(data, "");
+        double v = ValidadorVenda.validarValor(valor);
+
+        salvarEstado();
+
+        Venda venda = new Venda(d, v);
+        emp.adicionarVenda(venda);
+        PersistenciaXML.salvar(empregados);
+    }
+
+    public void lancaTaxaServico(String membro, String data, String valor) throws Exception {
+        verificarEncerrado();
+        Empregado emp = buscarEmpregadoPorMembro(membro);
+        LocalDate d = ValidadorCartao.validarData(data, "");
+        double t = ValidadorVenda.validarValor(valor);
+
+        salvarEstado();
+
+        TaxaServico taxa = new TaxaServico(d, t);
+        emp.adicionarTaxaServico(taxa);
+        PersistenciaXML.salvar(empregados);
+    }
+
+
+    // Salva empregado
     private String salvarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
         ValidadorEmpregado.validarAtributos(nome, endereco, tipo);
         double salario = ValidadorEmpregado.validarSalario(salarioStr);
@@ -74,14 +215,9 @@ public class Facade {
         PersistenciaXML.salvar(empregados);
         return id;
     }
-    public void removerEmpregado(String empId)throws Exception{
-        Empregado emp = buscarEmpregado(empId);
-        empregados.remove(empId);
 
-        PersistenciaXML.salvar(empregados);
 
-    }
-
+    // Busca empregado pelo ID
     private Empregado buscarEmpregado(String empId) throws Exception {
         if (empId == null || empId.trim().isEmpty()) {
             throw new Exception("Identificacao do empregado nao pode ser nula.");
@@ -93,7 +229,9 @@ public class Facade {
         return emp;
     }
 
+    // Registro de empregado pelo facade
     public String getAtributoEmpregado(String empId, String atributo) throws Exception {
+        verificarEncerrado();
         Empregado emp = buscarEmpregado(empId);
 
 
@@ -152,7 +290,9 @@ public class Facade {
         }
     }
 
+    // Encontra empregado por nome
     public String getEmpregadoPorNome(String nome, int indice) throws Exception {
+        verificarEncerrado();
         if (nome == null || nome.trim().isEmpty()) {
             throw new Exception("Nome nao pode ser nulo.");
         }
@@ -168,22 +308,15 @@ public class Facade {
         return encontrados.get(indice - 1).getId();
     }
 
-    public void lancaCartao(String empId, String data, String horas) throws Exception {
-        Empregado emp = buscarEmpregado(empId);
 
-        if(!"horista".equals(emp.getTipo())){
-            throw new Exception("Empregado nao eh horista.");
-        }
-        LocalDate d = ValidadorCartao.validarData(data, "");
-        double h = ValidadorCartao.validarHoras(horas);
-
-        Cartao c =new Cartao(d,h);
-        emp.adicionarCartao(c);
-        PersistenciaXML.salvar(empregados);
-
-
-    }
-
+    /**
+     * Pega as horas trabalhadas do empregado, logo abaixo existe outra que faz com horas EXTRAS para empregados horistas
+     * @param empId
+     * @param dataInicial
+     * @param dataFinal
+     * @return
+     * @throws Exception
+     */
     public String getHorasNormaisTrabalhadas(String empId, String dataInicial, String dataFinal) throws Exception{
         Empregado emp = buscarEmpregado(empId);
 
@@ -237,13 +370,23 @@ public class Facade {
         return formatarHoras(total);
     }
 
+    // Converte as horas
     private String formatarHoras(double h) {
         DecimalFormatSymbols simbolos = new DecimalFormatSymbols(Locale.forLanguageTag("pt-BR"));
         DecimalFormat df = new DecimalFormat("#.##", simbolos);
         return df.format(h);
     }
 
+    /**
+     * Soma as vendas realizadas para os empregados comissionados em um dado periodo
+     * @param empId
+     * @param dataInicial
+     * @param dataFinal
+     * @return Retorna o total de vendas
+     * @throws Exception
+     */
     public String getVendasRealizadas(String empId, String dataInicial, String dataFinal) throws Exception{
+        verificarEncerrado();
         Empregado emp = buscarEmpregado(empId);
 
         if(!"comissionado".equals(emp.getTipo())){
@@ -264,30 +407,10 @@ public class Facade {
         return String.format(Locale.GERMANY, "%.2f", total);
     }
 
-    public void lancaVenda(String empId, String data, String valor)throws Exception{
-        Empregado emp = buscarEmpregado(empId);
-
-        if(!"comissionado".equals(emp.getTipo())){
-            throw new Exception("Empregado nao eh comissionado.");
-        }
-        LocalDate d = ValidadorCartao.validarData(data, "");
-        double v = ValidadorVenda.validarValor(valor);
-        Venda venda = new Venda(d, v);
-        emp.adicionarVenda(venda);
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public void lancaTaxaServico(String membro, String data, String valor)throws Exception{
-        Empregado emp = buscarEmpregadoPorMembro(membro);
-
-        LocalDate d = ValidadorCartao.validarData(data, "");
-        double t = ValidadorVenda.validarValor(valor);
-
-        TaxaServico taxa = new TaxaServico(d,t);
-        emp.adicionarTaxaServico(taxa);
-        PersistenciaXML.salvar(empregados);
-    }
+    // Olha se o empregado é sindicalizado, se for, aplica a taxa
     public String getTaxasServico(String empId, String dataInicial, String dataFinal) throws Exception{
+        verificarEncerrado();
+
         Empregado emp = buscarEmpregado(empId);
         if (!emp.isSindicalizado()) {
             throw new Exception("Empregado nao eh sindicalizado.");
@@ -308,7 +431,7 @@ public class Facade {
 
     }
 
-
+    // Busca empregado a qual sindicato pertence
     private Empregado buscarEmpregadoPorMembro(String membro) throws Exception{
         if (membro == null || membro.trim().isEmpty()){
             throw new Exception("Identificacao do membro nao pode ser nula.");
@@ -321,83 +444,95 @@ public class Facade {
         throw new Exception("Membro nao existe.");
     }
 
+    /**
+     *  Existem 4 alteraEmpregado, mas, no momento estão certos. Cada um faz uma função
+     * @param empId Recebe o ID do empregado
+     * @param atributo Recebe o atributo que vai ser alterado
+     * @param valor Recebe o valor para qual o atributo será alterado
+     * @throws Exception
+     */
     public void alteraEmpregado(String empId, String atributo, String valor) throws Exception {
+        verificarEncerrado();
         Empregado emp = buscarEmpregado(empId);
 
         switch (atributo) {
             case "nome":
                 if (valor == null || valor.trim().isEmpty())
                     throw new Exception("Nome nao pode ser nulo.");
-                emp.setNome(valor);
                 break;
-
             case "endereco":
                 if (valor == null || valor.trim().isEmpty())
                     throw new Exception("Endereco nao pode ser nulo.");
-                emp.setEndereco(valor);
                 break;
-
-
             case "tipo":
                 if (!"horista".equals(valor) && !"assalariado".equals(valor)
                         && !"comissionado".equals(valor))
                     throw new Exception("Tipo invalido.");
-                emp.setTipo(valor);
                 break;
-
             case "salario":
-                emp.setSalario(ValidadorEmpregado.validarSalario(valor));
+                ValidadorEmpregado.validarSalario(valor);   // só valida
                 break;
-
             case "comissao":
                 if (!"comissionado".equals(emp.getTipo()))
                     throw new Exception("Empregado nao eh comissionado.");
-                emp.setComissao(ValidadorEmpregado.validarComissao(valor));
+                ValidadorEmpregado.validarComissao(valor);  // só valida
                 break;
-
             case "metodoPagamento":
-
                 if (!"emMaos".equals(valor) && !"correios".equals(valor))
                     throw new Exception("Metodo de pagamento invalido.");
+                break;
+            case "sindicalizado":
+                if (!"true".equals(valor) && !"false".equals(valor))
+                    throw new Exception("Valor deve ser true ou false.");
+                if ("true".equals(valor))
+                    throw new Exception("Identificacao do sindicato nao pode ser nula.");
+                break;
+            default:
+                throw new Exception("Atributo nao existe.");
+        }
+
+        salvarEstado();
+
+        switch (atributo) {
+            case "nome":     emp.setNome(valor); break;
+            case "endereco": emp.setEndereco(valor); break;
+            case "tipo":     emp.setTipo(valor); break;
+            case "salario":  emp.setSalario(ValidadorEmpregado.validarSalario(valor)); break;
+            case "comissao": emp.setComissao(ValidadorEmpregado.validarComissao(valor)); break;
+            case "metodoPagamento":
                 emp.setMetodoPagamento(valor);
                 emp.setBanco(null);
                 emp.setAgencia(null);
                 emp.setContaCorrente(null);
                 break;
-
             case "sindicalizado":
-
-                if (!"true".equals(valor) && !"false".equals(valor))
-
-                    throw new Exception("Valor deve ser true ou false.");
-
-                if ("false".equals(valor)) {
-                    emp.setSindicalizado(false);
-                    emp.setIdSindicato(null);
-                    emp.setTaxaSindical(null);
-                } else {
-                    throw new Exception("Identificacao do sindicato nao pode ser nula.");
-                }
+                emp.setSindicalizado(false);
+                emp.setIdSindicato(null);
+                emp.setTaxaSindical(null);
                 break;
-
-            default:
-                throw new Exception("Atributo nao existe.");
         }
 
         PersistenciaXML.salvar(empregados);
     }
+
     public void alteraEmpregado(String empId, String atributo, String valor, String extra) throws Exception {
+        verificarEncerrado();
         Empregado emp = buscarEmpregado(empId);
 
         if (!"tipo".equals(atributo))
             throw new Exception("Atributo nao existe.");
-
         if (!"horista".equals(valor) && !"assalariado".equals(valor)
                 && !"comissionado".equals(valor))
             throw new Exception("Tipo invalido.");
 
-        emp.setTipo(valor);
+        if ("comissionado".equals(valor))
+            ValidadorEmpregado.validarComissao(extra);
+        else
+            ValidadorEmpregado.validarSalario(extra);
 
+        salvarEstado();
+
+        emp.setTipo(valor);
         if ("comissionado".equals(valor)) {
             emp.setComissao(ValidadorEmpregado.validarComissao(extra));
         } else {
@@ -407,45 +542,42 @@ public class Facade {
 
         PersistenciaXML.salvar(empregados);
     }
-    public void alteraEmpregado(String empId, String atributo, String valor,
-                                String idSindicato, String taxaSindical) throws Exception {
+
+    public void alteraEmpregado(String empId, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
+        verificarEncerrado();
         Empregado emp = buscarEmpregado(empId);
 
         if (!"sindicalizado".equals(atributo))
             throw new Exception("Atributo nao existe.");
-
         if (!"true".equals(valor) && !"false".equals(valor))
             throw new Exception("Valor deve ser true ou false.");
 
-        if ("false".equals(valor)) {
-
-            emp.setSindicalizado(false);
-            emp.setIdSindicato(null);
-            emp.setTaxaSindical(null);
-        } else {
-
+        double taxa = 0;
+        if ("true".equals(valor)) {
             if (idSindicato == null || idSindicato.trim().isEmpty())
                 throw new Exception("Identificacao do sindicato nao pode ser nula.");
-
             if (taxaSindical == null || taxaSindical.trim().isEmpty())
                 throw new Exception("Taxa sindical nao pode ser nula.");
-
-            double taxa;
-
             try {
                 taxa = Double.parseDouble(taxaSindical.replace(",", "."));
             } catch (NumberFormatException e) {
                 throw new Exception("Taxa sindical deve ser numerica.");
             }
-
             if (taxa < 0)
                 throw new Exception("Taxa sindical deve ser nao-negativa.");
-
             for (Empregado e : empregados.values()) {
                 if (!e.getId().equals(empId) && idSindicato.equals(e.getIdSindicato()))
                     throw new Exception("Ha outro empregado com esta identificacao de sindicato");
             }
+        }
 
+        salvarEstado();
+
+        if ("false".equals(valor)) {
+            emp.setSindicalizado(false);
+            emp.setIdSindicato(null);
+            emp.setTaxaSindical(null);
+        } else {
             emp.setSindicalizado(true);
             emp.setIdSindicato(idSindicato);
             emp.setTaxaSindical(taxa);
@@ -453,7 +585,9 @@ public class Facade {
 
         PersistenciaXML.salvar(empregados);
     }
+
     public void alteraEmpregado(String empId, String atributo, String valor1, String banco, String agencia, String contaCorrente) throws Exception {
+        verificarEncerrado();
         Empregado emp = buscarEmpregado(empId);
 
         if (!"metodoPagamento".equals(atributo))
@@ -467,6 +601,8 @@ public class Facade {
         if (contaCorrente == null || contaCorrente.trim().isEmpty())
             throw new Exception("Conta corrente nao pode ser nulo.");
 
+        salvarEstado();
+
         emp.setMetodoPagamento("banco");
         emp.setBanco(banco);
         emp.setAgencia(agencia);
@@ -474,6 +610,8 @@ public class Facade {
 
         PersistenciaXML.salvar(empregados);
     }
+
+    // Calcula o total da folha
 
     public String totalFolha(String dataStr) throws Exception {
         LocalDate data = ValidadorCartao.validarData(dataStr, "");
@@ -483,10 +621,12 @@ public class Facade {
         }
         return String.format(Locale.GERMANY, "%.2f", total);
     }
+    // Roda Folha de pagamento
 
     public void rodaFolha(String dataStr, String saida) throws Exception {
+        verificarEncerrado();
         LocalDate data = ValidadorCartao.validarData(dataStr, "");
-
+        salvarEstado();
 
         List<Empregado> horistas = new ArrayList<>();
         List<Empregado> assalariados = new ArrayList<>();
@@ -520,6 +660,7 @@ public class Facade {
         }
     }
 
+    // Escrita no arquivo TXT
     private double escreverHoristas(PrintWriter out, List<Empregado> lista, LocalDate data) {
         String titulo = "===================== HORISTAS ";
         out.println("=".repeat(127));

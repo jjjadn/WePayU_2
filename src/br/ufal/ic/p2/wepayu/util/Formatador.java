@@ -4,6 +4,8 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
 
+
+// Uso o PC em inglês há alguns anos, então o teste teve algumas pendencias e tive que fazer a conversão entre ponto e virgula nos decimais
 public class Formatador {
     private static final Locale PT_BR = Locale.forLanguageTag("pt-BR");
 

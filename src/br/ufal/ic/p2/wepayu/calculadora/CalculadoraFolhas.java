@@ -9,7 +9,17 @@ import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.models.TaxaServico;
 import br.ufal.ic.p2.wepayu.models.Venda;
 
+/**
+ * Calcula a maioria das pendencias da folha de pagamento
+ */
 public class CalculadoraFolhas {
+
+    /**
+     *
+     * @param emp valida o ID
+     * @param data recebe a data e valida se deve ser pago
+     * @return
+     */
     public static double calcular(Empregado emp, LocalDate data){
         if(!deveSerPago(emp, data)) return 0;
 
@@ -23,6 +33,7 @@ public class CalculadoraFolhas {
         }
         return 0;
     }
+
 
     public static boolean deveSerPago(Empregado emp, LocalDate data) {
         if (data.getDayOfWeek() != DayOfWeek.FRIDAY) {
@@ -104,6 +115,12 @@ public class CalculadoraFolhas {
         return dataAnterior(data, emp);
     }
 
+    /**
+     *
+     * @param d olha qual é a última data e se serve para
+     * @param emp
+     * @return retorna o valor das datas
+     */
     private static LocalDate dataAnterior(LocalDate d, Empregado emp) {
         switch (emp.getTipo()) {
             case "horista":      return d.minusDays(7);
