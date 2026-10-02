@@ -1,4 +1,4 @@
-package br.ufal.ic.p2.wepayu.persistencia;
+package br.ufal.ic.p2.wepayu.codificadores;
 
 import br.ufal.ic.p2.wepayu.models.Empregado;
 
