@@ -17,7 +17,7 @@ import java.util.Stack;
 import br.ufal.ic.p2.wepayu.models.Cartao;
 import br.ufal.ic.p2.wepayu.models.TaxaServico;
 import br.ufal.ic.p2.wepayu.models.Venda;
-import br.ufal.ic.p2.wepayu.persistencia.PersistenciaXML;
+import br.ufal.ic.p2.wepayu.codificadores.PersistenciaXML;
 import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorCartao;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorEmpregado;
