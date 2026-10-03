@@ -1,11 +1,13 @@
 package br.ufal.ic.p2.wepayu.validacao;
 
+import br.ufal.ic.p2.wepayu.Exception.ValorNaoPositivoException;
+
 public class ValidadorVenda {
 
     public static double validarValor(String valorStr) throws Exception {
 
         if (valorStr == null || valorStr.trim().isEmpty()) {
-            throw new Exception("Valor deve ser positivo.");
+            throw new ValorNaoPositivoException();
         }
 
         String tratado = valorStr.trim().replace(",", ".");
@@ -15,11 +17,11 @@ public class ValidadorVenda {
         try {
             valor = Double.parseDouble(tratado);
         } catch (NumberFormatException e) {
-            throw new Exception("Valor deve ser positivo.");
+            throw new ValorNaoPositivoException();
         }
 
         if (valor <= 0) {
-            throw new Exception("Valor deve ser positivo.");
+            throw new ValorNaoPositivoException();
         }
 
         return valor;

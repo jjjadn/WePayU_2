@@ -1,5 +1,7 @@
 package br.ufal.ic.p2.wepayu.validacao;
 
+import br.ufal.ic.p2.wepayu.Exception.HorasNaoPositivasException;
+
 import java.time.LocalDate;
 
 public class ValidadorCartao {
@@ -37,17 +39,17 @@ public class ValidadorCartao {
 
     public static double validarHoras(String horasSt) throws Exception {
         if(horasSt == null|| horasSt.trim().isEmpty()){
-            throw new Exception("Horas devem ser positivas.");
+            throw new HorasNaoPositivasException();
         }
         String horasTratado = horasSt.trim().replace(",", ".");
         double horas;
         try {
             horas = Double.parseDouble(horasTratado);
         } catch (NumberFormatException e) {
-            throw new Exception("Horas devem ser positivas.");
+            throw new HorasNaoPositivasException();
         }
         if(horas <= 0){
-            throw new Exception("Horas devem ser positivas.");
+            throw new HorasNaoPositivasException();
         }
 
         return horas;
