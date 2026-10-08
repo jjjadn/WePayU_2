@@ -1,12 +1,10 @@
 package br.ufal.ic.p2.wepayu;
 
-import java.io.File;
 import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.LocalDate;
 import java.util.*;
-import java.io.PrintWriter;
 import java.io.FileWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -14,7 +12,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Stack;
 
-import br.ufal.ic.p2.wepayu.Exception.*;
+import br.ufal.ic.p2.wepayu.exception.*;
 import br.ufal.ic.p2.wepayu.codificadores.PersistenciaXML;
 import br.ufal.ic.p2.wepayu.models.Cartao;
 import br.ufal.ic.p2.wepayu.models.TaxaServico;
@@ -22,7 +20,6 @@ import br.ufal.ic.p2.wepayu.models.Venda;
 import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorCartao;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorEmpregado;
-import br.ufal.ic.p2.wepayu.validacao.ValidadorTaxa;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorVenda;
 import br.ufal.ic.p2.wepayu.calculadora.CalculadoraFolhas;
 

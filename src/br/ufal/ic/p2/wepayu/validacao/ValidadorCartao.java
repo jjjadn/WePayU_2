@@ -1,6 +1,6 @@
 package br.ufal.ic.p2.wepayu.validacao;
 
-import br.ufal.ic.p2.wepayu.Exception.HorasNaoPositivasException;
+import br.ufal.ic.p2.wepayu.exception.HorasNaoPositivasException;
 
 import java.time.LocalDate;
 
