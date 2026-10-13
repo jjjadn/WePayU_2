@@ -1,62 +1,240 @@
 package br.ufal.ic.p2.wepayu;
-
-import java.io.PrintWriter;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.time.LocalDate;
-import java.util.*;
-import java.io.FileWriter;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.util.Stack;
-
-import br.ufal.ic.p2.wepayu.exception.*;
 import br.ufal.ic.p2.wepayu.codificadores.PersistenciaXML;
-import br.ufal.ic.p2.wepayu.models.Cartao;
-import br.ufal.ic.p2.wepayu.models.TaxaServico;
-import br.ufal.ic.p2.wepayu.models.Venda;
+import br.ufal.ic.p2.wepayu.exception.SistemaEncerradoException;
 import br.ufal.ic.p2.wepayu.models.Empregado;
-import br.ufal.ic.p2.wepayu.validacao.ValidadorCartao;
-import br.ufal.ic.p2.wepayu.validacao.ValidadorEmpregado;
-import br.ufal.ic.p2.wepayu.validacao.ValidadorVenda;
-import br.ufal.ic.p2.wepayu.calculadora.CalculadoraFolhas;
+import br.ufal.ic.p2.wepayu.servicos.GerenciadorEmpregados;
+import br.ufal.ic.p2.wepayu.servicos.GerenciadorPagamentos;
+import br.ufal.ic.p2.wepayu.servicos.HistoricoOperacoes;
+import br.ufal.ic.p2.wepayu.servicos.ServicoFolha;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class Facade {
     private Map<String, Empregado> empregados;
-    private final String ARQUIVO_DADOS = "dados_empregados.dat";
-    private Stack<Map<String, Empregado>> pilhaUndo = new Stack<>();
-    private Stack<Map<String, Empregado>> pilhaRedo = new Stack<>();
+    private GerenciadorEmpregados gerenciadorEmp;
+    private GerenciadorPagamentos gerenciadorPag;
+    private ServicoFolha servicoFolha;
+    private HistoricoOperacoes historico;
     private boolean encerrado = false;
 
-
-    // Leitura do arquivo XML pelo Facade
     public Facade() {
         this.empregados = PersistenciaXML.carregar();
-        if (this.empregados == null) {
-            this.empregados = new LinkedHashMap<>();
-        }
+        if (this.empregados == null) this.empregados = new LinkedHashMap<>();
+        this.gerenciadorEmp = new GerenciadorEmpregados(empregados);
+        this.gerenciadorPag = new GerenciadorPagamentos(empregados, gerenciadorEmp);
+        this.servicoFolha = new ServicoFolha(empregados);
+        this.historico = new HistoricoOperacoes();
     }
 
 
+    public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Empregado> deepCopy(Map<String, Empregado> original) {
         try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            new ObjectOutputStream(baos).writeObject(original);
-
-            ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
-            return (Map<String, Empregado>) new ObjectInputStream(bais).readObject();
+            String id = gerenciadorEmp.criarEmpregado(nome, endereco, tipo, salarioStr);
+            PersistenciaXML.salvar(empregados);
+            return id;
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            historico.descartarUltimo();
+            throw e;
         }
     }
 
-    private void salvarEstado() {
-        pilhaUndo.push(deepCopy(empregados));
-        pilhaRedo.clear();
+    public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            String id = gerenciadorEmp.criarEmpregado(nome, endereco, tipo, salarioStr, comissaoStr);
+            PersistenciaXML.salvar(empregados);
+            return id;
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public void removerEmpregado(String empId) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            gerenciadorEmp.removerEmpregado(empId);
+            PersistenciaXML.salvar(empregados);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public String getAtributoEmpregado(String empId, String atributo) throws Exception {
+        verificarEncerrado();
+        return gerenciadorEmp.getAtributoEmpregado(empId, atributo);
+    }
+
+    public String getEmpregadoPorNome(String nome, int indice) throws Exception {
+        verificarEncerrado();
+        return gerenciadorEmp.getEmpregadoPorNome(nome, indice);
+    }
+
+    public int getNumeroDeEmpregados() throws Exception {
+        verificarEncerrado();
+        return gerenciadorEmp.getNumeroDeEmpregados();
+    }
+
+    public void lancaCartao(String empId, String data, String horas) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            gerenciadorPag.lancaCartao(empId, data, horas);
+            PersistenciaXML.salvar(empregados);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public void lancaVenda(String empId, String data, String valor) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            gerenciadorPag.lancaVenda(empId, data, valor);
+            PersistenciaXML.salvar(empregados);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public void lancaTaxaServico(String membro, String data, String valor) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            gerenciadorPag.lancaTaxaServico(membro, data, valor);
+            PersistenciaXML.salvar(empregados);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public String getHorasNormaisTrabalhadas(String empId, String dataInicial, String dataFinal) throws Exception {
+        verificarEncerrado();
+        return gerenciadorPag.getHorasNormaisTrabalhadas(empId, dataInicial, dataFinal);
+    }
+
+    public String getHorasExtrasTrabalhadas(String empId, String dataInicial, String dataFinal) throws Exception {
+        verificarEncerrado();
+        return gerenciadorPag.getHorasExtrasTrabalhadas(empId, dataInicial, dataFinal);
+    }
+
+    public String getVendasRealizadas(String empId, String dataInicial, String dataFinal) throws Exception {
+        verificarEncerrado();
+        return gerenciadorPag.getVendasRealizadas(empId, dataInicial, dataFinal);
+    }
+
+    public String getTaxasServico(String empId, String dataInicial, String dataFinal) throws Exception {
+        verificarEncerrado();
+        return gerenciadorPag.getTaxasServico(empId, dataInicial, dataFinal);
+    }
+
+    public void alteraEmpregado(String empId, String atributo, String valor) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            gerenciadorEmp.alteraEmpregado(empId, atributo, valor);
+            PersistenciaXML.salvar(empregados);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public void alteraEmpregado(String empId, String atributo, String valor, String extra) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            gerenciadorEmp.alteraEmpregado(empId, atributo, valor, extra);
+            PersistenciaXML.salvar(empregados);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public void alteraEmpregado(String empId, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            gerenciadorEmp.alteraEmpregado(empId, atributo, valor, idSindicato, taxaSindical);
+            PersistenciaXML.salvar(empregados);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public void alteraEmpregado(String empId, String atributo, String valor1, String banco, String agencia, String contaCorrente) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            gerenciadorEmp.alteraEmpregado(empId, atributo, valor1, banco, agencia, contaCorrente);
+            PersistenciaXML.salvar(empregados);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+    public String totalFolha(String dataStr) throws Exception {
+        verificarEncerrado();
+        return servicoFolha.totalFolha(dataStr);
+    }
+
+    public void rodaFolha(String dataStr, String saida) throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+
+        try {
+            servicoFolha.rodaFolha(dataStr, saida);
+        } catch (Exception e) {
+            historico.descartarUltimo();
+            throw e;
+        }
+    }
+
+    public void undo() throws Exception {
+        verificarEncerrado();
+        empregados = historico.undo(empregados);
+        reconfigurarGerenciadores();
+        PersistenciaXML.salvar(empregados);
+    }
+
+    public void redo() throws Exception {
+        verificarEncerrado();
+        empregados = historico.redo(empregados);
+        reconfigurarGerenciadores();
+        PersistenciaXML.salvar(empregados);
+    }
+
+    public void zerarSistema() throws Exception {
+        verificarEncerrado();
+        historico.salvarEstado(empregados);
+        empregados.clear();
+        PersistenciaXML.apagar();
+    }
+
+    public void encerrarSistema() {
+        encerrado = true;
+        PersistenciaXML.salvar(empregados);
     }
 
     private void verificarEncerrado() throws Exception {
@@ -65,758 +243,9 @@ public class Facade {
         }
     }
 
-    public void encerrarSistema() {
-        encerrado = true;
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public void undo() throws Exception {
-        verificarEncerrado();
-        if (pilhaUndo.isEmpty()) {
-            throw new SemComandoParaDesfazerException();
-        }
-        pilhaRedo.push(deepCopy(empregados));
-        empregados = pilhaUndo.pop();
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public void redo() throws Exception {
-        verificarEncerrado();
-        if (pilhaRedo.isEmpty()) {
-            throw new SemComandoParaRefazerException();
-        }
-        pilhaUndo.push(deepCopy(empregados));
-        empregados = pilhaRedo.pop();
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public int getNumeroDeEmpregados() throws Exception {
-        verificarEncerrado();
-        return empregados.size();
-    }
-
-
-    public void zerarSistema() throws Exception {
-        verificarEncerrado();
-        salvarEstado();
-        this.empregados.clear();
-        PersistenciaXML.apagar();
-    }
-
-    public void removerEmpregado(String empId) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-        salvarEstado();
-        empregados.remove(empId);
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr) throws Exception {
-        verificarEncerrado();
-        if ("comissionado".equals(tipo)) {
-            throw new TipoNaoAplicavelException();
-        }
-
-        ValidadorEmpregado.validarAtributos(nome, endereco, tipo);
-        double salario = ValidadorEmpregado.validarSalario(salarioStr);
-
-        salvarEstado();
-
-        String id = UUID.randomUUID().toString();
-        Empregado emp = new Empregado(id, nome, endereco, tipo, salario, null);
-        empregados.put(id, emp);
-        PersistenciaXML.salvar(empregados);
-        return id;
-    }
-
-
-    public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
-        verificarEncerrado();
-        if (tipo != null && !"comissionado".equals(tipo)) {
-            throw new TipoNaoAplicavelException();
-        }
-
-        ValidadorEmpregado.validarAtributos(nome, endereco, tipo);
-        double salario = ValidadorEmpregado.validarSalario(salarioStr);
-        Double comissao = ValidadorEmpregado.validarComissao(comissaoStr);
-
-        salvarEstado();
-
-        String id = UUID.randomUUID().toString();
-        Empregado emp = new Empregado(id, nome, endereco, tipo, salario, comissao);
-        empregados.put(id, emp);
-        PersistenciaXML.salvar(empregados);
-        return id;
-    }
-
-    public void lancaCartao(String empId, String data, String horas) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-
-        if (!"horista".equals(emp.getTipo())) {
-            throw new EmpregadoNaoHoristaException();
-        }
-        LocalDate d = ValidadorCartao.validarData(data, "");
-        double h = ValidadorCartao.validarHoras(horas);
-
-        salvarEstado();
-
-        Cartao c = new Cartao(d, h);
-        emp.adicionarCartao(c);
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public void lancaVenda(String empId, String data, String valor) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-
-        if (!"comissionado".equals(emp.getTipo())) {
-            throw new EmpregadoNaoComissionadoException();
-        }
-        LocalDate d = ValidadorCartao.validarData(data, "");
-        double v = ValidadorVenda.validarValor(valor);
-
-        salvarEstado();
-
-        Venda venda = new Venda(d, v);
-        emp.adicionarVenda(venda);
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public void lancaTaxaServico(String membro, String data, String valor) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregadoPorMembro(membro);
-        LocalDate d = ValidadorCartao.validarData(data, "");
-        double t = ValidadorVenda.validarValor(valor);
-
-        salvarEstado();
-
-        TaxaServico taxa = new TaxaServico(d, t);
-        emp.adicionarTaxaServico(taxa);
-        PersistenciaXML.salvar(empregados);
-    }
-
-
-    // Salva empregado
-    private String salvarEmpregado(String nome, String endereco, String tipo, String salarioStr, String comissaoStr) throws Exception {
-        ValidadorEmpregado.validarAtributos(nome, endereco, tipo);
-        double salario = ValidadorEmpregado.validarSalario(salarioStr);
-        Double comissao = null;
-
-        if ("comissionado".equals(tipo)) {
-            comissao = ValidadorEmpregado.validarComissao(comissaoStr);
-        }
-
-        String id = UUID.randomUUID().toString();
-        Empregado emp = new Empregado(id, nome, endereco, tipo, salario, comissao);
-        empregados.put(id, emp);
-        PersistenciaXML.salvar(empregados);
-        return id;
-    }
-
-
-    // Busca empregado pelo ID
-    private Empregado buscarEmpregado(String empId) throws Exception {
-        if (empId == null || empId.trim().isEmpty()) {
-            throw new IdentificacaoNaoNulaException();
-        }
-        Empregado emp = empregados.get(empId);
-        if (emp == null) {
-            throw new EmpregadoNaoExisteException();
-        }
-        return emp;
-    }
-
-    // Registro de empregado pelo facade
-    public String getAtributoEmpregado(String empId, String atributo) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-
-
-        switch (atributo) {
-            case "nome":
-                return emp.getNome();
-            case "endereco":
-                return emp.getEndereco();
-            case "tipo":
-                return emp.getTipo();
-            case "salario":
-                return String.format(Locale.GERMANY, "%.2f", emp.getSalario());
-            case "comissao":
-                if (emp.getComissao() == null) {
-                    throw new EmpregadoNaoComissionadoException();
-                }
-                return String.format(Locale.GERMANY, "%.2f", emp.getComissao());
-            case "sindicalizado":
-                return String.valueOf(emp.isSindicalizado());
-
-            case "metodoPagamento":
-                return emp.getMetodoPagamento();
-
-            case "banco":
-                if(!"banco".equals(emp.getMetodoPagamento())){
-                throw new EmpregadoNaoRecebeEmBancoException();
-                }
-                return emp.getBanco();
-
-            case "agencia":
-                if(!"banco".equals(emp.getMetodoPagamento())){
-                    throw new EmpregadoNaoRecebeEmBancoException();
-                }
-                return emp.getAgencia();
-
-            case "contaCorrente":
-                if(!"banco".equals(emp.getMetodoPagamento())){
-                    throw new EmpregadoNaoRecebeEmBancoException();
-                }
-                return emp.getContaCorrente();
-
-            case "idSindicato":
-                if(!emp.isSindicalizado()){
-                    throw new EmpregadoNaoSindicalizadoException();
-                }
-                return emp.getIdSindicato();
-
-            case "taxaSindical":
-                if(!emp.isSindicalizado()){
-                    throw new EmpregadoNaoSindicalizadoException();
-                }
-                return String.format(Locale.GERMANY, "%.2f", emp.getTaxaSindical());
-
-            default:
-                throw new AtributoNaoExisteException();
-        }
-    }
-
-    // Encontra empregado por nome
-    public String getEmpregadoPorNome(String nome, int indice) throws Exception {
-        verificarEncerrado();
-        if (nome == null || nome.trim().isEmpty()) {
-            throw new NomeNaoNuloException();
-        }
-        List<Empregado> encontrados = new ArrayList<>();
-        for (Empregado emp : empregados.values()) {
-            if (emp.getNome() != null && emp.getNome().contains(nome)) {
-                encontrados.add(emp);
-            }
-        }
-        if (encontrados.isEmpty() || indice < 1 || indice > encontrados.size()) {
-            throw new NaoHaEmpregadoComNomeException();
-        }
-        return encontrados.get(indice - 1).getId();
-    }
-
-
-    /**
-     * Pega as horas trabalhadas do empregado, logo abaixo existe outra que faz com horas EXTRAS para empregados horistas
-     * @param empId
-     * @param dataInicial
-     * @param dataFinal
-     * @return
-     * @throws Exception
-     */
-    public String getHorasNormaisTrabalhadas(String empId, String dataInicial, String dataFinal) throws Exception{
-        Empregado emp = buscarEmpregado(empId);
-
-        if (!"horista".equals(emp.getTipo())) {
-            throw new EmpregadoNaoHoristaException();
-        }
-
-
-        LocalDate inicial = ValidadorCartao.validarData(dataInicial, "inicial");
-        LocalDate fim = ValidadorCartao.validarData(dataFinal, "final");
-
-
-        if (inicial.isAfter(fim)) {
-            throw new DataInicialNaoPosteriorDataFinalException();
-        }
-        double total = 0;
-
-        for (Cartao c : emp.getCartoes()) {
-            LocalDate d = c.getData();
-            if (!d.isBefore(inicial) && d.isBefore(fim)) {
-                total += Math.min(c.getHoras(), 8);
-            }
-        }
-        return formatarHoras(total);
-
-    }
-
-    public String getHorasExtrasTrabalhadas(String empId, String dataInicial, String dataFinal) throws Exception {
-        Empregado emp = buscarEmpregado(empId);
-
-        if (!"horista".equals(emp.getTipo())) {
-            throw new EmpregadoNaoHoristaException();
-        }
-
-
-        LocalDate inicial = ValidadorCartao.validarData(dataInicial, "inicial");
-        LocalDate fim = ValidadorCartao.validarData(dataFinal, "final");
-
-
-        if (inicial.isAfter(fim)) {
-            throw new DataInicialNaoPosteriorDataFinalException();
-        }
-
-        double total = 0;
-        for (Cartao c : emp.getCartoes()) {
-            LocalDate d = c.getData();
-            if (!d.isBefore(inicial) && d.isBefore(fim)) {
-                total += Math.max(0, c.getHoras() - 8);
-            }
-        }
-        return formatarHoras(total);
-    }
-
-    // Converte as horas
-    private String formatarHoras(double h) {
-        DecimalFormatSymbols simbolos = new DecimalFormatSymbols(Locale.forLanguageTag("pt-BR"));
-        DecimalFormat df = new DecimalFormat("#.##", simbolos);
-        return df.format(h);
-    }
-
-    /**
-     * Soma as vendas realizadas para os empregados comissionados em um dado periodo
-     * @param empId
-     * @param dataInicial
-     * @param dataFinal
-     * @return Retorna o total de vendas
-     * @throws Exception
-     */
-    public String getVendasRealizadas(String empId, String dataInicial, String dataFinal) throws Exception{
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-
-        if(!"comissionado".equals(emp.getTipo())){
-            throw new EmpregadoNaoComissionadoException();
-        }
-        LocalDate inicial = ValidadorCartao.validarData(dataInicial, "inicial");
-        LocalDate fim = ValidadorCartao.validarData(dataFinal, "final");
-        if(inicial.isAfter(fim)){
-            throw new DataInicialNaoPosteriorDataFinalException();
-        }
-        double total = 0;
-        for (Venda v : emp.getVendas()) {
-            if (!v.getData().isBefore(inicial) && v.getData().isBefore(fim)) {
-                total += v.getValor();
-            }
-        }
-
-        return String.format(Locale.GERMANY, "%.2f", total);
-    }
-
-    // Olha se o empregado é sindicalizado, se for, aplica a taxa
-    public String getTaxasServico(String empId, String dataInicial, String dataFinal) throws Exception{
-        verificarEncerrado();
-
-        Empregado emp = buscarEmpregado(empId);
-        if (!emp.isSindicalizado()) {
-            throw new EmpregadoNaoSindicalizadoException();
-        }
-        LocalDate inicial = ValidadorCartao.validarData(dataInicial, "inicial");
-        LocalDate fim = ValidadorCartao.validarData(dataFinal, "final");
-
-        if(inicial.isAfter(fim)){
-            throw new DataInicialNaoPosteriorDataFinalException();
-        }
-        double total = 0;
-        for (TaxaServico t : emp.getTaxaServicos()) {
-            if (!t.getData().isBefore(inicial) && t.getData().isBefore(fim)) {
-                total += t.getTaxa();
-            }
-        }
-        return String.format(Locale.GERMANY, "%.2f", total);
-
-    }
-
-    // Busca empregado a qual sindicato pertence
-    private Empregado buscarEmpregadoPorMembro(String membro) throws Exception{
-        if (membro == null || membro.trim().isEmpty()){
-            throw new IdentificacaoMembroNulaException();
-        }
-        for(Empregado e: empregados.values()){
-            if(membro.equals(e.getIdSindicato())){
-                return e;
-            }
-        }
-        throw new MembroNaoExisteException();
-    }
-
-    /**
-     *  Existem 4 alteraEmpregado, mas, no momento estão certos. Cada um faz uma função
-     * @param empId Recebe o ID do empregado
-     * @param atributo Recebe o atributo que vai ser alterado
-     * @param valor Recebe o valor para qual o atributo será alterado
-     * @throws Exception
-     */
-    public void alteraEmpregado(String empId, String atributo, String valor) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-
-        switch (atributo) {
-            case "nome":
-                if (valor == null || valor.trim().isEmpty())
-                    throw new NomeNaoNuloException();
-                break;
-            case "endereco":
-                if (valor == null || valor.trim().isEmpty())
-                    throw new EnderecoNaoNuloException();
-                break;
-            case "tipo":
-                if (!"horista".equals(valor) && !"assalariado".equals(valor)
-                        && !"comissionado".equals(valor))
-                    throw new TipoEmpregadoNaoValidoException();
-                break;
-            case "salario":
-                ValidadorEmpregado.validarSalario(valor);   // só valida
-                break;
-            case "comissao":
-                if (!"comissionado".equals(emp.getTipo()))
-                    throw new EmpregadoNaoComissionadoException();
-                ValidadorEmpregado.validarComissao(valor);  // só valida
-                break;
-            case "metodoPagamento":
-                if (!"emMaos".equals(valor) && !"correios".equals(valor))
-                    throw new MetodoPagamentoInvalidoException();
-                break;
-            case "sindicalizado":
-                if (!"true".equals(valor) && !"false".equals(valor))
-                    throw new SindicatoBooleanException();
-                if ("true".equals(valor))
-                    throw new IdentificacaoSindicatoNaoNulaException();
-                break;
-            default:
-                throw new AtributoNaoExisteException();
-        }
-
-        salvarEstado();
-
-        switch (atributo) {
-            case "nome":     emp.setNome(valor); break;
-            case "endereco": emp.setEndereco(valor); break;
-            case "tipo":     emp.setTipo(valor); break;
-            case "salario":  emp.setSalario(ValidadorEmpregado.validarSalario(valor)); break;
-            case "comissao": emp.setComissao(ValidadorEmpregado.validarComissao(valor)); break;
-            case "metodoPagamento":
-                emp.setMetodoPagamento(valor);
-                emp.setBanco(null);
-                emp.setAgencia(null);
-                emp.setContaCorrente(null);
-                break;
-            case "sindicalizado":
-                emp.setSindicalizado(false);
-                emp.setIdSindicato(null);
-                emp.setTaxaSindical(null);
-                break;
-        }
-
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public void alteraEmpregado(String empId, String atributo, String valor, String extra) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-
-        if (!"tipo".equals(atributo))
-            throw new AtributoNaoExisteException();
-        if (!"horista".equals(valor) && !"assalariado".equals(valor)
-                && !"comissionado".equals(valor))
-            throw new TipoEmpregadoNaoValidoException();
-
-        if ("comissionado".equals(valor))
-            ValidadorEmpregado.validarComissao(extra);
-        else
-            ValidadorEmpregado.validarSalario(extra);
-
-        salvarEstado();
-
-        emp.setTipo(valor);
-        if ("comissionado".equals(valor)) {
-            emp.setComissao(ValidadorEmpregado.validarComissao(extra));
-        } else {
-            emp.setSalario(ValidadorEmpregado.validarSalario(extra));
-            emp.setComissao(null);
-        }
-
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public void alteraEmpregado(String empId, String atributo, String valor, String idSindicato, String taxaSindical) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-
-        if (!"sindicalizado".equals(atributo))
-            throw new AtributoNaoExisteException();
-        if (!"true".equals(valor) && !"false".equals(valor))
-            throw new SindicatoBooleanException();
-
-        double taxa = 0;
-        if ("true".equals(valor)) {
-            if (idSindicato == null || idSindicato.trim().isEmpty())
-                throw new IdentificacaoSindicatoNaoNulaException();
-            if (taxaSindical == null || taxaSindical.trim().isEmpty())
-                throw new TaxaSindicalNaoNulaException();
-            try {
-                taxa = Double.parseDouble(taxaSindical.replace(",", "."));
-            } catch (NumberFormatException e) {
-                throw new TaxaSindicalNaoNumericaException();
-            }
-            if (taxa < 0)
-                throw new TaxaSindicalNaoNegativaException();
-            for (Empregado e : empregados.values()) {
-                if (!e.getId().equals(empId) && idSindicato.equals(e.getIdSindicato()))
-                    throw new EmpregadoMesmaIdentificacaoSindicatoException();
-            }
-        }
-
-        salvarEstado();
-
-        if ("false".equals(valor)) {
-            emp.setSindicalizado(false);
-            emp.setIdSindicato(null);
-            emp.setTaxaSindical(null);
-        } else {
-            emp.setSindicalizado(true);
-            emp.setIdSindicato(idSindicato);
-            emp.setTaxaSindical(taxa);
-        }
-
-        PersistenciaXML.salvar(empregados);
-    }
-
-    public void alteraEmpregado(String empId, String atributo, String valor1, String banco, String agencia, String contaCorrente) throws Exception {
-        verificarEncerrado();
-        Empregado emp = buscarEmpregado(empId);
-
-        if (!"metodoPagamento".equals(atributo))
-            throw new AtributoNaoExisteException();
-        if (!"banco".equals(valor1))
-            throw new MetodoPagamentoInvalidoException();
-        if (banco == null || banco.trim().isEmpty())
-            throw new BancoNaoNuloException();
-        if (agencia == null || agencia.trim().isEmpty())
-            throw new AgenciaNaoNulaException();
-        if (contaCorrente == null || contaCorrente.trim().isEmpty())
-            throw new ContaCorrenteNaoNulaException();
-
-        salvarEstado();
-
-        emp.setMetodoPagamento("banco");
-        emp.setBanco(banco);
-        emp.setAgencia(agencia);
-        emp.setContaCorrente(contaCorrente);
-
-        PersistenciaXML.salvar(empregados);
-    }
-
-    // Calcula o total da folha
-
-    public String totalFolha(String dataStr) throws Exception {
-        LocalDate data = ValidadorCartao.validarData(dataStr, "");
-        double total = 0;
-        for (Empregado emp : empregados.values()) {
-            total += CalculadoraFolhas.calcular(emp, data);
-        }
-        return String.format(Locale.GERMANY, "%.2f", total);
-    }
-    // Roda Folha de pagamento
-
-    public void rodaFolha(String dataStr, String saida) throws Exception {
-        verificarEncerrado();
-        LocalDate data = ValidadorCartao.validarData(dataStr, "");
-        salvarEstado();
-
-        List<Empregado> horistas = new ArrayList<>();
-        List<Empregado> assalariados = new ArrayList<>();
-        List<Empregado> comissionados = new ArrayList<>();
-
-        for (Empregado e : empregados.values()) {
-            switch (e.getTipo()) {
-                case "horista":      horistas.add(e); break;
-                case "assalariado":  assalariados.add(e); break;
-                case "comissionado": comissionados.add(e); break;
-            }
-        }
-        horistas.sort(Comparator.comparing(Empregado::getNome));
-        assalariados.sort(Comparator.comparing(Empregado::getNome));
-        comissionados.sort(Comparator.comparing(Empregado::getNome));
-
-        try (PrintWriter out = new PrintWriter(new FileWriter(saida))) {
-
-            out.println("FOLHA DE PAGAMENTO DO DIA " + data.toString());
-            out.println("=".repeat(36));
-            out.println();
-
-            double totalGeral = 0;
-
-            totalGeral += escreverHoristas(out, horistas, data);
-            totalGeral += escreverAssalariados(out, assalariados, data);
-            totalGeral += escreverComissionados(out, comissionados, data);
-
-
-            out.println("TOTAL FOLHA: " + String.format(Locale.GERMANY, "%.2f", totalGeral));
-        }
-    }
-
-    // Escrita no arquivo TXT
-    private double escreverHoristas(PrintWriter out, List<Empregado> lista, LocalDate data) {
-        String titulo = "===================== HORISTAS ";
-        out.println("=".repeat(127));
-        out.println(titulo + "=".repeat(127 - titulo.length()));
-        out.println("=".repeat(127));
-        out.println(String.format("%-36s %5s %5s %13s %9s %15s %s",
-                "Nome", "Horas", "Extra", "Salario Bruto", "Descontos", "Salario Liquido", "Metodo"));
-        out.println("==================================== ===== ===== ============= ========= =============== ======================================");
-
-        double somaBruto = 0, somaDesc = 0, somaLiq = 0;
-        int somaHoras = 0, somaExtra = 0;
-
-        for (Empregado emp : lista) {
-            if (!CalculadoraFolhas.deveSerPago(emp, data)) continue;
-
-            int horas = 0, extra = 0;
-            LocalDate inicio = data.minusDays(7);
-            for (Cartao c : emp.getCartoes()) {
-                if (!c.getData().isBefore(inicio) && c.getData().isBefore(data)) {
-                    horas += (int) Math.min(c.getHoras(), 8);
-                    extra += (int) Math.max(0, c.getHoras() - 8);
-                }
-            }
-
-            double bruto = CalculadoraFolhas.calcular(emp, data);
-            double desc  = CalculadoraFolhas.calcularDesconto(emp, data);
-            double liq   = Math.max(0, bruto - desc);
-
-
-
-            out.println(String.format("%-36s %5d %5d %13s %9s %15s %s",
-                    emp.getNome(), horas, extra,
-                    String.format(Locale.GERMANY, "%.2f", bruto),
-                    String.format(Locale.GERMANY, "%.2f", desc),
-                    String.format(Locale.GERMANY, "%.2f", liq),
-                    formatarMetodo(emp)));
-
-            somaBruto += bruto; somaDesc += desc; somaLiq += liq;
-            somaHoras += horas; somaExtra += extra;
-        }
-
-        out.println();
-        out.println(String.format("%-36s %5d %5d %13s %9s %15s",
-                "TOTAL HORISTAS", somaHoras, somaExtra,
-                String.format(Locale.GERMANY, "%.2f", somaBruto),
-                String.format(Locale.GERMANY, "%.2f", somaDesc),
-                String.format(Locale.GERMANY, "%.2f", somaLiq)));
-        out.println();
-
-        return somaBruto;
-    }
-    private double escreverAssalariados(PrintWriter out, List<Empregado> lista, LocalDate data) {
-        String titulo = "===================== ASSALARIADOS ";
-        out.println("=".repeat(127));
-        out.println(titulo + "=".repeat(127 - titulo.length()));
-        out.println("=".repeat(127));
-        out.println(String.format("%-48s %13s %9s %15s %s",
-                "Nome", "Salario Bruto", "Descontos", "Salario Liquido", "Metodo"));
-        out.println("================================================ ============= ========= =============== ======================================");
-
-        double somaBruto = 0, somaDesc = 0, somaLiq = 0;
-
-        for (Empregado emp : lista) {
-            if (!CalculadoraFolhas.deveSerPago(emp, data)) continue;
-
-            double bruto = CalculadoraFolhas.calcular(emp, data);
-            double desc  = CalculadoraFolhas.calcularDesconto(emp, data);
-            double liq   = Math.max(0, bruto - desc);
-
-
-
-            out.println(String.format("%-48s %13s %9s %15s %s",
-                    emp.getNome(),
-                    String.format(Locale.GERMANY, "%.2f", bruto),
-                    String.format(Locale.GERMANY, "%.2f", desc),
-                    String.format(Locale.GERMANY, "%.2f", liq),
-                    formatarMetodo(emp)));
-
-            somaBruto += bruto; somaDesc += desc; somaLiq += liq;
-        }
-
-        out.println();
-        out.println(String.format("%-48s %13s %9s %15s",
-                "TOTAL ASSALARIADOS",
-                String.format(Locale.GERMANY, "%.2f", somaBruto),
-                String.format(Locale.GERMANY, "%.2f", somaDesc),
-                String.format(Locale.GERMANY, "%.2f", somaLiq)));
-        out.println();
-
-        return somaBruto;
-    }
-
-    private double escreverComissionados(PrintWriter out, List<Empregado> lista, LocalDate data) {
-        String titulo = "===================== COMISSIONADOS ";
-        out.println("=".repeat(127));
-        out.println(titulo + "=".repeat(127 - titulo.length()));
-        out.println("=".repeat(127));
-        out.println(String.format("%-21s %-8s %-8s %-8s %13s %9s %15s %s",
-                "Nome", "Fixo", "Vendas", "Comissao", "Salario Bruto", "Descontos", "Salario Liquido", "Metodo"));
-        out.println("===================== ======== ======== ======== ============= ========= =============== ======================================");
-
-        double somaFixo = 0, somaVendas = 0, somaComissao = 0;
-        double somaBruto = 0, somaDesc = 0, somaLiq = 0;
-
-        for (Empregado emp : lista) {
-            if (!CalculadoraFolhas.deveSerPago(emp, data)) continue;
-
-            double base = Math.floor(emp.getSalario() * 12.0 / 26.0 * 100) / 100;
-            double vendas = 0;
-            LocalDate inicio = data.minusDays(14);
-            for (Venda v : emp.getVendas()) {
-                if (!v.getData().isBefore(inicio) && v.getData().isBefore(data)) {
-                    vendas += v.getValor();
-                }
-            }
-            double comissao = vendas * (emp.getComissao() == null ? 0 : emp.getComissao());
-            comissao = Math.floor(comissao * 100) / 100;
-            double bruto = CalculadoraFolhas.calcular(emp, data);
-            double desc  = CalculadoraFolhas.calcularDesconto(emp, data);
-            double liq   = Math.max(0, bruto - desc);
-
-
-
-            out.println(String.format("%-21s %8s %8s %8s %13s %9s %15s %s",
-                    emp.getNome(),
-                    String.format(Locale.GERMANY, "%.2f", base),
-                    String.format(Locale.GERMANY, "%.2f", vendas),
-                    String.format(Locale.GERMANY, "%.2f", comissao),
-                    String.format(Locale.GERMANY, "%.2f", bruto),
-                    String.format(Locale.GERMANY, "%.2f", desc),
-                    String.format(Locale.GERMANY, "%.2f", liq),
-                    formatarMetodo(emp)));
-
-            somaFixo += base; somaVendas += vendas; somaComissao += comissao;
-            somaBruto += bruto; somaDesc += desc; somaLiq += liq;
-        }
-
-        out.println();
-        out.println(String.format("%-21s %8s %8s %8s %13s %9s %15s",
-                "TOTAL COMISSIONADOS",
-                String.format(Locale.GERMANY, "%.2f", somaFixo),
-                String.format(Locale.GERMANY, "%.2f", somaVendas),
-                String.format(Locale.GERMANY, "%.2f", somaComissao),
-                String.format(Locale.GERMANY, "%.2f", somaBruto),
-                String.format(Locale.GERMANY, "%.2f", somaDesc),
-                String.format(Locale.GERMANY, "%.2f", somaLiq)));
-        out.println();
-
-        return somaBruto;
-    }
-
-    private String formatarMetodo(Empregado emp) {
-        String m = emp.getMetodoPagamento();
-        if ("emMaos".equals(m)) return "Em maos";
-        if ("correios".equals(m)) return "Correios, " + emp.getEndereco();
-        if ("banco".equals(m)) {
-            return emp.getBanco() + ", Ag. " + emp.getAgencia() + " CC " + emp.getContaCorrente();
-        }
-        return m;
+    private void reconfigurarGerenciadores() {
+        this.gerenciadorEmp = new GerenciadorEmpregados(empregados);
+        this.gerenciadorPag = new GerenciadorPagamentos(empregados, gerenciadorEmp);
+        this.servicoFolha = new ServicoFolha(empregados);
     }
 }

@@ -1,5 +1,6 @@
 package br.ufal.ic.p2.wepayu.calculadora;
 
+
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -36,24 +37,41 @@ public class CalculadoraFolhas {
 
 
     public static boolean deveSerPago(Empregado emp, LocalDate data) {
-        if (data.getDayOfWeek() != DayOfWeek.FRIDAY) {
-            if ("assalariado".equals(emp.getTipo()))
+        String agenda = emp.getAgendaPagamento();
+
+        switch (agenda) {
+            case "semanal 5":
+                return data.getDayOfWeek() == DayOfWeek.FRIDAY;
+
+            case "mensal $":
                 return data.getDayOfMonth() == data.lengthOfMonth();
-            return false;
-        }
 
-        LocalDate contrato = LocalDate.of(2005, 1, 1);
-        long semanas = ChronoUnit.WEEKS.between(contrato, data);
+            case "semanal 2 5":
+                if (data.getDayOfWeek() != DayOfWeek.FRIDAY) return false;
+                long semanas = ChronoUnit.WEEKS.between(LocalDate.of(2005, 1, 1), data);
+                return semanas % 2 == 1;
 
-        switch (emp.getTipo()) {
-            case "horista":      return true;
-            case "comissionado": return semanas % 2 == 1;
-            default:             return false;
+            default:
+
+                return false;
         }
     }
 
     private static double calcularHorista(Empregado emp, LocalDate data) {
-        LocalDate inicio = data.minusDays(7);
+
+        String agenda = emp.getAgendaPagamento();
+
+        long diasPeriodo;
+
+        switch (agenda) {
+            case "semanal 5":    diasPeriodo = 7;  break;
+            case "semanal 2 5":  diasPeriodo = 14; break;
+            case "mensal $":     diasPeriodo = data.lengthOfMonth(); break;
+            default:             return 0;
+        }
+
+        LocalDate inicio = data.minusDays(diasPeriodo);
+
         double normais = 0, extras = 0;
 
         for (Cartao c : emp.getCartoes()) {
@@ -67,23 +85,64 @@ public class CalculadoraFolhas {
     }
 
     private static double calcularAssalariado(Empregado emp, LocalDate data) {
-        return emp.getSalario();
+        String agenda = emp.getAgendaPagamento();
+
+        double anual = emp.getSalario() * 12.0;
+
+        switch (agenda) {
+            case "semanal 5":
+                return Math.floor(anual / 52.0 * 100) / 100;
+            case "semanal 2 5":
+                return Math.floor(anual / 26.0 * 100) / 100;
+            case "mensal $":
+                return emp.getSalario();
+            default:
+                return 0;
+        }
     }
 
     private static double calcularComissionado(Empregado emp, LocalDate data) {
-        LocalDate inicio = data.minusDays(15);
-        double base = emp.getSalario() * 12.0 / 26.0;
+        String agenda = emp.getAgendaPagamento();
+
+        double anual = emp.getSalario() * 12.0;
+
+        double base;
+
+        long diasPeriodo;
+
+        switch (agenda) {
+            case "semanal 5":
+                base = anual / 52.0;
+                diasPeriodo = 7;
+                break;
+            case "semanal 2 5":
+                base = anual / 26.0;
+                diasPeriodo = 14;
+                break;
+            case "mensal $":
+                base = anual / 12.0;
+                diasPeriodo = data.lengthOfMonth();
+                break;
+            default:
+                return 0;
+        }
         base = Math.floor(base * 100) / 100;
 
+        LocalDate inicio = data.minusDays(diasPeriodo);
+
         double vendas = 0;
+
         for (Venda v : emp.getVendas()) {
             if (!v.getData().isBefore(inicio) && v.getData().isBefore(data)) {
                 vendas += v.getValor();
             }
         }
 
-        double bruto = base + (vendas * (emp.getComissao() == null ? 0 : emp.getComissao()));
-        return Math.floor(bruto * 100) / 100;
+        double comissao = vendas * (emp.getComissao() == null ? 0 : emp.getComissao());
+
+        comissao = Math.floor(comissao * 100) / 100;
+
+        return Math.round((base + comissao) * 100) / 100.0;
     }
 
     public static double calcularDesconto(Empregado emp, LocalDate data) {

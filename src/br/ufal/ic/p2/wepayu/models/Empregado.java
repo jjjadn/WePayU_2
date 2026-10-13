@@ -3,6 +3,7 @@ package br.ufal.ic.p2.wepayu.models;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class Empregado implements Serializable {
@@ -25,6 +26,7 @@ public class Empregado implements Serializable {
     private String agencia;
     private String contaCorrente;
     private LocalDate ultimaDataPagamento;
+    private String agendaPagamento = "semanal 5";
 
 
     public Empregado(){}
@@ -37,6 +39,12 @@ public class Empregado implements Serializable {
         this.salario = salario;
         this.comissao = comissao;
         this.sindicalizado = false;
+
+        switch (tipo) {
+            case "horista":      this.agendaPagamento = "semanal 5"; break;
+            case "assalariado":  this.agendaPagamento = "mensal $"; break;
+            case "comissionado": this.agendaPagamento = "semanal 2 5"; break;
+        }
     }
 
 
@@ -47,9 +55,9 @@ public class Empregado implements Serializable {
     public double getSalario() {return salario;}
     public Double getComissao() {return comissao;}
     public boolean isSindicalizado() {return sindicalizado;}
-    public List<Cartao> getCartoes() {return cartoes;}
-    public List<Venda> getVendas(){return vendas;}
-    public List<TaxaServico> getTaxaServicos(){return taxaServicos;}
+    public List<Cartao> getCartoes() { return Collections.unmodifiableList(cartoes); }
+    public List<Venda> getVendas() { return Collections.unmodifiableList(vendas); }
+    public List<TaxaServico> getTaxaServicos() { return Collections.unmodifiableList(taxaServicos); }
     public String getIdSindicato(){return idSindicato;}
     public Double getTaxaSindical(){return taxaSindical;}
     public String getMetodoPagamento(){return metodoPagamento;}
@@ -57,6 +65,7 @@ public class Empregado implements Serializable {
     public String getAgencia(){return agencia;}
     public String getContaCorrente(){return contaCorrente;}
     public LocalDate getUltimaDataPagamento(){return ultimaDataPagamento; }
+    public String getAgendaPagamento() { return agendaPagamento; }
 
 
     public void setId(String id) { this.id = id; }
@@ -83,4 +92,6 @@ public class Empregado implements Serializable {
     public void adicionarVenda(Venda v) {this.vendas.add(v);}
     public void adicionarTaxaServico(TaxaServico t){this.taxaServicos.add(t);}
     public void setUltimaDataPagamento(LocalDate d){this.ultimaDataPagamento = d;}
+    public void setAgendaPagamento(String a) { this.agendaPagamento = a; }
+
 }
