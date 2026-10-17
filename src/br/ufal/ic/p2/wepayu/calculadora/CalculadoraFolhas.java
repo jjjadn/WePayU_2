@@ -9,6 +9,7 @@ import br.ufal.ic.p2.wepayu.models.Cartao;
 import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.models.TaxaServico;
 import br.ufal.ic.p2.wepayu.models.Venda;
+import br.ufal.ic.p2.wepayu.servicos.AgendaPagamento;
 
 /**
  * Calcula a maioria das pendencias da folha de pagamento
@@ -37,37 +38,19 @@ public class CalculadoraFolhas {
 
 
     public static boolean deveSerPago(Empregado emp, LocalDate data) {
-        String agenda = emp.getAgendaPagamento();
-
-        switch (agenda) {
-            case "semanal 5":
-                return data.getDayOfWeek() == DayOfWeek.FRIDAY;
-
-            case "mensal $":
-                return data.getDayOfMonth() == data.lengthOfMonth();
-
-            case "semanal 2 5":
-                if (data.getDayOfWeek() != DayOfWeek.FRIDAY) return false;
-                long semanas = ChronoUnit.WEEKS.between(LocalDate.of(2005, 1, 1), data);
-                return semanas % 2 == 1;
-
-            default:
-
-                return false;
-        }
+        return new AgendaPagamento(emp.getAgendaPagamento()).devePagar(data);
     }
 
     private static double calcularHorista(Empregado emp, LocalDate data) {
 
-        String agenda = emp.getAgendaPagamento();
+        AgendaPagamento agenda = new AgendaPagamento(emp.getAgendaPagamento());
 
         long diasPeriodo;
 
-        switch (agenda) {
-            case "semanal 5":    diasPeriodo = 7;  break;
-            case "semanal 2 5":  diasPeriodo = 14; break;
-            case "mensal $":     diasPeriodo = data.lengthOfMonth(); break;
-            default:             return 0;
+        if (agenda.isMensal()) {
+            diasPeriodo = data.lengthOfMonth();
+        } else {
+            diasPeriodo = agenda.getFreq() * 7L;
         }
 
         LocalDate inicio = data.minusDays(diasPeriodo);
@@ -80,25 +63,19 @@ public class CalculadoraFolhas {
                 extras  += Math.max(0, c.getHoras() - 8);
             }
         }
-
         return (normais * emp.getSalario()) + (extras * 1.5 * emp.getSalario());
     }
 
     private static double calcularAssalariado(Empregado emp, LocalDate data) {
-        String agenda = emp.getAgendaPagamento();
 
-        double anual = emp.getSalario() * 12.0;
+        AgendaPagamento agenda = new AgendaPagamento(emp.getAgendaPagamento());
 
-        switch (agenda) {
-            case "semanal 5":
-                return Math.floor(anual / 52.0 * 100) / 100;
-            case "semanal 2 5":
-                return Math.floor(anual / 26.0 * 100) / 100;
-            case "mensal $":
-                return emp.getSalario();
-            default:
-                return 0;
+        if (agenda.isMensal()) {
+            return emp.getSalario();
         }
+
+        int freq = agenda.getFreq();
+        return Math.floor(emp.getSalario() * 12.0 * freq / 52.0 * 100) / 100;
     }
 
     private static double calcularComissionado(Empregado emp, LocalDate data) {

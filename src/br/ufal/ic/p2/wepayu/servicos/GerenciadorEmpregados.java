@@ -9,6 +9,7 @@ import java.util.Set;
 import br.ufal.ic.p2.wepayu.models.Empregado;
 import br.ufal.ic.p2.wepayu.validacao.ValidadorEmpregado;
 import br.ufal.ic.p2.wepayu.exception.*;
+import br.ufal.ic.p2.wepayu.servicos.AgendaPagamento;
 
 public class GerenciadorEmpregados {
 
@@ -345,7 +346,21 @@ public class GerenciadorEmpregados {
         }
     }
 
+    public void criarAgendaDePagamentos(String descricao) throws Exception {
+        AgendaPagamento.validarDescricao(descricao);
 
+        if (agendasDisponiveis.contains(descricao)) {
+            throw new AgendaJaExisteException();
+        }
+        agendasDisponiveis.add(descricao);
+    }
+
+    public void resetarAgendas() {
+        agendasDisponiveis.clear();
+        agendasDisponiveis.add("semanal 5");
+        agendasDisponiveis.add("mensal $");
+        agendasDisponiveis.add("semanal 2 5");
+    }
     public void alteraEmpregado(String empId, String atributo, String valor1, String banco, String agencia, String contaCorrente) throws Exception {
 
         Empregado emp = buscarEmpregado(empId);

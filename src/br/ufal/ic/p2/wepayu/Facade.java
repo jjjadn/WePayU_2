@@ -56,6 +56,11 @@ public class Facade {
         }
     }
 
+    public void criarAgendaDePagamentos(String descricao) throws Exception {
+        verificarEncerrado();
+        gerenciadorEmp.criarAgendaDePagamentos(descricao);
+    }
+
     public void removerEmpregado(String empId) throws Exception {
         verificarEncerrado();
         historico.salvarEstado(empregados);
@@ -229,6 +234,7 @@ public class Facade {
         verificarEncerrado();
         historico.salvarEstado(empregados);
         empregados.clear();
+        gerenciadorEmp.resetarAgendas();
         PersistenciaXML.apagar();
     }
 
