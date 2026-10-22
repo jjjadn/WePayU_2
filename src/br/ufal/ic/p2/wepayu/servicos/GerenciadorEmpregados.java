@@ -14,15 +14,20 @@ import br.ufal.ic.p2.wepayu.servicos.AgendaPagamento;
 public class GerenciadorEmpregados {
 
     private Map<String, Empregado> empregados;
+    private Set<String> agendasDisponiveis;
 
-    private Set<String> agendasDisponiveis = new HashSet<>(Arrays.asList(
-            "semanal 5",
-            "mensal $",
-            "semanal 2 5"
-    ));
 
-    public GerenciadorEmpregados(Map<String, Empregado> empregados) {
+
+
+    public GerenciadorEmpregados(Map<String, Empregado> empregados, Set<String> agendas) {
         this.empregados = empregados;
+        this.agendasDisponiveis = agendas;
+
+        if (this.agendasDisponiveis == null) {
+            this.agendasDisponiveis = new HashSet<>(Arrays.asList(
+                    "semanal 5", "mensal $", "semanal 2 5"
+            ));
+        }
     }
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr) throws Exception {
@@ -381,4 +386,10 @@ public class GerenciadorEmpregados {
         emp.setAgencia(agencia);
         emp.setContaCorrente(contaCorrente);
     }
+
+    public Set<String> getAgendasDisponiveis() {
+        return agendasDisponiveis;
+    }
+
+
 }

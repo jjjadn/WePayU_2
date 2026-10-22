@@ -2,6 +2,7 @@ package br.ufal.ic.p2.wepayu;
 import br.ufal.ic.p2.wepayu.codificadores.PersistenciaXML;
 import br.ufal.ic.p2.wepayu.exception.SistemaEncerradoException;
 import br.ufal.ic.p2.wepayu.models.Empregado;
+import br.ufal.ic.p2.wepayu.models.Sistema;
 import br.ufal.ic.p2.wepayu.servicos.GerenciadorEmpregados;
 import br.ufal.ic.p2.wepayu.servicos.GerenciadorPagamentos;
 import br.ufal.ic.p2.wepayu.servicos.HistoricoOperacoes;
@@ -9,6 +10,7 @@ import br.ufal.ic.p2.wepayu.servicos.ServicoFolha;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class Facade {
     private Map<String, Empregado> empregados;
@@ -19,14 +21,13 @@ public class Facade {
     private boolean encerrado = false;
 
     public Facade() {
-        this.empregados = PersistenciaXML.carregar();
-        if (this.empregados == null) this.empregados = new LinkedHashMap<>();
-        this.gerenciadorEmp = new GerenciadorEmpregados(empregados);
+        Sistema sistema = PersistenciaXML.carregar();
+        this.empregados = sistema.getEmpregados();
+        this.gerenciadorEmp = new GerenciadorEmpregados(empregados, sistema.getAgendas());
         this.gerenciadorPag = new GerenciadorPagamentos(empregados, gerenciadorEmp);
         this.servicoFolha = new ServicoFolha(empregados);
         this.historico = new HistoricoOperacoes();
     }
-
 
     public String criarEmpregado(String nome, String endereco, String tipo, String salarioStr) throws Exception {
         verificarEncerrado();
@@ -34,7 +35,7 @@ public class Facade {
 
         try {
             String id = gerenciadorEmp.criarEmpregado(nome, endereco, tipo, salarioStr);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
             return id;
         } catch (Exception e) {
             historico.descartarUltimo();
@@ -48,7 +49,7 @@ public class Facade {
 
         try {
             String id = gerenciadorEmp.criarEmpregado(nome, endereco, tipo, salarioStr, comissaoStr);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
             return id;
         } catch (Exception e) {
             historico.descartarUltimo();
@@ -67,7 +68,7 @@ public class Facade {
 
         try {
             gerenciadorEmp.removerEmpregado(empId);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
         } catch (Exception e) {
             historico.descartarUltimo();
             throw e;
@@ -95,7 +96,7 @@ public class Facade {
 
         try {
             gerenciadorPag.lancaCartao(empId, data, horas);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
         } catch (Exception e) {
             historico.descartarUltimo();
             throw e;
@@ -108,7 +109,7 @@ public class Facade {
 
         try {
             gerenciadorPag.lancaVenda(empId, data, valor);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
         } catch (Exception e) {
             historico.descartarUltimo();
             throw e;
@@ -121,7 +122,7 @@ public class Facade {
 
         try {
             gerenciadorPag.lancaTaxaServico(membro, data, valor);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
         } catch (Exception e) {
             historico.descartarUltimo();
             throw e;
@@ -154,7 +155,7 @@ public class Facade {
 
         try {
             gerenciadorEmp.alteraEmpregado(empId, atributo, valor);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
         } catch (Exception e) {
             historico.descartarUltimo();
             throw e;
@@ -167,7 +168,7 @@ public class Facade {
 
         try {
             gerenciadorEmp.alteraEmpregado(empId, atributo, valor, extra);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
         } catch (Exception e) {
             historico.descartarUltimo();
             throw e;
@@ -180,7 +181,7 @@ public class Facade {
 
         try {
             gerenciadorEmp.alteraEmpregado(empId, atributo, valor, idSindicato, taxaSindical);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
         } catch (Exception e) {
             historico.descartarUltimo();
             throw e;
@@ -193,7 +194,7 @@ public class Facade {
 
         try {
             gerenciadorEmp.alteraEmpregado(empId, atributo, valor1, banco, agencia, contaCorrente);
-            PersistenciaXML.salvar(empregados);
+            PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
         } catch (Exception e) {
             historico.descartarUltimo();
             throw e;
@@ -220,27 +221,27 @@ public class Facade {
         verificarEncerrado();
         empregados = historico.undo(empregados);
         reconfigurarGerenciadores();
-        PersistenciaXML.salvar(empregados);
+        PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
     }
 
     public void redo() throws Exception {
         verificarEncerrado();
         empregados = historico.redo(empregados);
         reconfigurarGerenciadores();
-        PersistenciaXML.salvar(empregados);
+        PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
     }
 
     public void zerarSistema() throws Exception {
         verificarEncerrado();
         historico.salvarEstado(empregados);
-        empregados.clear();
+        this.empregados.clear();
         gerenciadorEmp.resetarAgendas();
         PersistenciaXML.apagar();
     }
 
     public void encerrarSistema() {
         encerrado = true;
-        PersistenciaXML.salvar(empregados);
+        PersistenciaXML.salvar(new Sistema(empregados, gerenciadorEmp.getAgendasDisponiveis()));
     }
 
     private void verificarEncerrado() throws Exception {
@@ -250,7 +251,9 @@ public class Facade {
     }
 
     private void reconfigurarGerenciadores() {
-        this.gerenciadorEmp = new GerenciadorEmpregados(empregados);
+        Set<String> agendas = this.gerenciadorEmp.getAgendasDisponiveis();
+
+        this.gerenciadorEmp = new GerenciadorEmpregados(empregados, agendas);
         this.gerenciadorPag = new GerenciadorPagamentos(empregados, gerenciadorEmp);
         this.servicoFolha = new ServicoFolha(empregados);
     }

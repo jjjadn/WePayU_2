@@ -5,8 +5,8 @@
 
 # User Story 10 - Teste de Persistencia
 
-expecterror "Agenda de pagamentos ja existe" criarAgendaDePagamentos descricao="semanal 2"
-expecterror "Agenda de pagamentos ja existe" criarAgendaDePagamentos descricao="mensal 1"
+expectError "Agenda de pagamentos ja existe" criarAgendaDePagamentos descricao="semanal 2"
+expectError "Agenda de pagamentos ja existe" criarAgendaDePagamentos descricao="mensal 1"
 id1=getEmpregadoPorNome nome="Joao da Silva" indice=1
 expect "mensal 1" getAtributoEmpregado emp=${id1} atributo=agendaPagamento
 alteraEmpregado emp=${id1} atributo=agendaPagamento valor1="semanal 2"
