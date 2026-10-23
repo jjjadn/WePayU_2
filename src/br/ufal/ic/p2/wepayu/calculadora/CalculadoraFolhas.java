@@ -166,20 +166,6 @@ public class CalculadoraFolhas {
         return d.minusDays(30);
     }
 
-    private static double calcularDescontoSindical(Empregado emp, LocalDate inicio, LocalDate fim) {
-        if (!emp.isSindicalizado()) return 0;
-
-        long dias = ChronoUnit.DAYS.between(inicio, fim);
-        double diario = emp.getTaxaSindical() == null ? 0 : emp.getTaxaSindical();
-        double desconto = dias * diario;
-
-        for (TaxaServico t : emp.getTaxaServicos()) {
-            if (!t.getData().isBefore(inicio) && t.getData().isBefore(fim)) {
-                desconto += t.getTaxa();
-            }
-        }
-        return desconto;
-    }
 }
 
 
